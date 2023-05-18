@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 控制算法
 
 # Control Algorithm
@@ -54,3 +55,6 @@ python >= 3.9
 numpy >= 1.22.3
 
 matplotlib >= 3.5.1
+=======
+# Control-Algorithm
+>>>>>>> a268140e0ed3f9ca86275589fd239e5e46f6781e
