@@ -9,30 +9,50 @@ Created on Sun Jul 24 15:43:28 2022
 # model free controller
 
 import pylab as pl
-from pylab import inf
 from copy import deepcopy
-from common import BaseController, demo0
+from dataclasses import dataclass
+from common import BaseController, SignalLike, StepDemo
 
 
+# PID控制器参数
+@dataclass
 class PIDConfig:
-    def __init__(self):
-        self.dt = 0.001        # 仿真步长 (float)
-        self.dim = 1           # 控制器维度 (int)
-        # PID控制器增益
-        self.Kp = 5           # 比例增益 (float or list)
-        self.Ki = 0.001       # 积分增益 (float or list)
-        self.Kd = 10          # 微分增益 (float or list)
-        # 抗积分饱和
-        self.u_max = inf      # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
-        self.u_min = -inf     # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
-        self.Kaw = 0.2        # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
-        self.max_err = inf    # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器 (float or list)
+    """PID控制算法参数
+    :param dt: float, 仿真步长
+    :param dim: int, 信号维度, 即控制器输入v、y和输出u的维度
+    :param Kp: SignalLike, PID比例增益系数
+    :param Ki: SignalLike, PID积分增益系数
+    :param Kd: SignalLike, PID微分增益系数
+    :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
+    :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
+    :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
+    :param max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+    :Type : SignalLike = float | list / ndarray (一维数组即向量)\n
+    备注:\n
+    dim为需要跟踪的信号v, 实际信号y, 和控制量u的长度, 此时v/y/u为一维数组list/ndarray\n
+    dim>1时SignalLike为向量时相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
+    dim>1时SignalLike为标量时相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
+    dim=1时SignalLike为标量或长度为1的向量, 此时设计了1个控制器\n
+    """
+    dt: float = 0.001            # 仿真步长 (float)
+    dim: int = 1                 # 控制器维度 (int)
+    # PID控制器增益
+    Kp: SignalLike = 5           # 比例增益 (float or list)
+    Ki: SignalLike = 0.001       # 积分增益 (float or list)
+    Kd: SignalLike = 10          # 微分增益 (float or list)
+    # 抗积分饱和
+    u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
+    u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
+    Kaw: SignalLike = 0.2        # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
+    max_err: SignalLike = pl.inf # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器 (float or list)
 
 
 
-''' 位置式PID控制算法 '''
+# 位置式PID控制算法
 class PID(BaseController):
-    def __init__(self, cfg):
+    """位置式PID控制算法"""
+
+    def __init__(self, cfg: PIDConfig):
         super().__init__()
         self.name = 'PID'      # 算法名称
         self.dt = cfg.dt       # 仿真步长
@@ -59,18 +79,18 @@ class PID(BaseController):
         self.t = 0
         
         # 存储器
-        self.list_e = []    # 误差
-        self.list_d = []    # 误差微分
-        self.list_i = []    # 误差积分
+        self.logger.e = []    # 误差
+        self.logger.d = []    # 误差微分
+        self.logger.i = []    # 误差积分
     
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, v, y):
+    def __call__(self, v, y) -> SignalLike:
         # 计算PID误差
         error = pl.array(v - y).flatten()              # P偏差 array(n,)
         differential = error - self.error_last         # D偏差 array(n,)
         
         # 抗积分饱和算法
-        beta = self.anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
+        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
         
         # 控制量
         self.u = self.Kp * error + beta * self.Ki * self.integration + self.Kd * differential
@@ -78,19 +98,19 @@ class PID(BaseController):
         self.error_last = deepcopy(error)
         
         # 存储绘图数据
-        self.list_t.append(self.t)
-        self.list_u.append(self.u)
-        self.list_y.append(y)
-        self.list_v.append(v)
-        self.list_e.append(error)
-        self.list_d.append(differential)
-        self.list_i.append(self.integration)
+        self.logger.t.append(self.t)
+        self.logger.u.append(self.u)
+        self.logger.y.append(y)
+        self.logger.v.append(v)
+        self.logger.e.append(error)
+        self.logger.d.append(differential)
+        self.logger.i.append(self.integration)
         
         self.t += self.dt
         return self.u
     
     # 抗积分饱和算法 + 积分分离
-    def anti_integral_windup(self, error, method = 2):
+    def _anti_integral_windup(self, error, method = 2):
         beta = pl.zeros(self.dim) # 积分分离参数
         gamma = pl.zeros(self.dim) if method < 2 else None # 方法1的抗积分饱和参数
         for i in range(self.dim):
@@ -129,23 +149,23 @@ class PID(BaseController):
         return beta
             
     
-    def show(self, save = False):
+    def show(self, *, save = False):
         # 响应曲线 与 控制曲线
-        self.basic_plot(save)
+        super().show(save=save)
         
         # 误差曲线
-        self._figure(fig_name='Error Curve', t=self.list_t,
-                     y1=self.list_e, y1_label='error',
+        self._figure(fig_name='Error Curve', t=self.logger.t,
+                     y1=self.logger.e, y1_label='error',
                      xlabel='time', ylabel='error signal', save=save)
-        self._figure(fig_name='Differential of Error Curve', t=self.list_t,
-                     y1=self.list_d, y1_label='differential of error',
+        self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
+                     y1=self.logger.d, y1_label='differential of error',
                      xlabel='time', ylabel='error differential signal', save=save)
-        self._figure(fig_name='Integration of Error Curve', t=self.list_t,
-                     y1=self.list_i, y1_label='integration of error',
+        self._figure(fig_name='Integration of Error Curve', t=self.logger.t,
+                     y1=self.logger.i, y1_label='integration of error',
                      xlabel='time', ylabel='error integration signal', save=save)
         
-        # 理想轨迹跟踪曲线
-        self._figure3D('轨迹跟踪控制', save=save)
+        # 3D数据轨迹跟踪曲线
+        self._figure3D(save=save)
         
         # 显示图像
         pl.show()
@@ -153,9 +173,11 @@ class PID(BaseController):
         
         
         
-''' 增量式PID控制算法 '''
+# 增量式PID控制算法
 class IncrementPID(PID):
-    def __init__(self, cfg):
+    """增量式PID控制算法"""
+
+    def __init__(self, cfg: PIDConfig):
         super().__init__(cfg)
         self.name = 'IncrementPID'             # 算法名称
         self.error_last2 = pl.zeros(self.dim)  # e(k-2)
@@ -168,7 +190,7 @@ class IncrementPID(PID):
         
         # 抗积分饱和算法
         self.integration = pl.zeros(self.dim)             # 积分增量 integration = error - 反馈信号
-        beta = self.anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
+        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
         
         # 控制量
         u0 = self.Kp * (error - self.error_last) + beta * self.Ki * self.integration \
@@ -180,13 +202,13 @@ class IncrementPID(PID):
         self.error_sum += self.integration         # 积分绘图用
         
         # 存储绘图数据
-        self.list_t.append(self.t)
-        self.list_u.append(self.u)
-        self.list_y.append(y)
-        self.list_v.append(v)
-        self.list_e.append(error)
-        self.list_d.append(differential)
-        self.list_i.append(self.error_sum)
+        self.logger.t.append(self.t)
+        self.logger.u.append(self.u)
+        self.logger.y.append(y)
+        self.logger.v.append(v)
+        self.logger.e.append(error)
+        self.logger.d.append(differential)
+        self.logger.i.append(self.error_sum)
         
         self.t += self.dt
         return self.u
@@ -194,7 +216,12 @@ class IncrementPID(PID):
     
     
 
+__all__ = ['PIDConfig', 'PID', 'IncrementPID']
+
+
+
+
 'debug'
 if __name__ == '__main__':
     cfg = PIDConfig()
-    demo0(PID, cfg)
+    StepDemo(PID, cfg)

@@ -1,41 +1,85 @@
 # -*- coding: utf-8 -*-
 """
+控制器基类
 Created on Sat Jul 23 23:59:33 2022
 
-@author: HJ
+@author: HJ https://github.com/zhaohaojie1998
 """
 
 ''' 控制器 '''
+from typing import Union
 from abc import ABC, abstractmethod
-from utils import get_path, tic, toc
+from utils import get_str_time, TicToc
+from pathlib import Path
 import pylab as pl
 
 
-class BaseController(ABC, object):
+ListLike = Union[list, pl.ndarray]
+"""绘图数据"""
+
+SignalLike = Union[float, list, pl.ndarray]
+"""信号数据, 标量或向量"""
+
+
+class Logger:
+    pass
+
+
+class BaseController(ABC):
     def __init__(self):
         # common参数
         self.name = 'Controller'
         self.dt = 0.001
         self.dim = 1     # 跟踪信号维度
         
-        # common存储器
-        self.list_t= []  # 时间
-        self.list_u = [] # 控制
-        self.list_y = [] # 实际信号
-        self.list_v = [] # 输入信号
-        
-    @abstractmethod
-    def __call__(self):
-        pass
-    
+        # 绘图数据存储器
+        self.logger = Logger()
+        self.logger.t = [] # 时间
+        self.logger.u = [] # 控制
+        self.logger.y = [] # 实际信号
+        self.logger.v = [] # 输入信号
+
+        # 绘图存储地址
+        self.save_dir = Path('figure', self.name)
+
+
     def __repr__(self):
         return self.name +' Controller'
-    
+        
+
     @abstractmethod
-    def show(self):
-        pass
+    def __call__(self, v: SignalLike, y: SignalLike) -> SignalLike:
+        """控制器输入输出接口
+
+        Ctrller
+        ------
+        控制y信号跟踪v信号, 输出控制量u\n
+
+                ————————          ——————————         \n
+         v ---> | ctrl | -- u --> | system | ---> y  \n
+                ————————          ——————————         \n
+                   ↑                  |              \n
+                   -------- y ---------              \n
+
+        Params
+        ------
+        v : SignalLike (标量或向量)
+            控制器输入信号, 即理想信号
+        y : SignalLike (标量或向量)
+            控制器反馈信号, 即实际信号
+
+        Return
+        ------
+        u : SignalLike (标量或向量)
+            输出控制量u
+        """
+        raise NotImplementedError
     
-    def basic_plot(self, save = False):
+    
+    def show(self, *, save=False):
+        """控制器控制效果绘图输出
+        :param save: bool, 是否存储绘图
+        """
         # 绘图配置
         pl.mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei'] # 修复字体bug
         pl.mpl.rcParams['axes.unicode_minus'] = False            # 用来正常显示负号
@@ -52,23 +96,34 @@ class BaseController(ABC, object):
         pl.close('all')                                          # 关闭所有窗口
         
         # 响应曲线
-        self._figure(fig_name='Response Curve', t=self.list_t,
-                     y1=self.list_y, y1_label='Real Signal',
-                     y2=self.list_v, y2_label='Input Signal',
+        self._figure(fig_name='Response Curve', t=self.logger.t,
+                     y1=self.logger.y, y1_label='Real Signal',
+                     y2=self.logger.v, y2_label='Input Signal',
                      xlabel='time', ylabel='response signal', save=save)
         # 控制曲线
-        self._figure(fig_name='Control Law', t=self.list_t,
-                     y1=self.list_u, y1_label='Control Signal',
+        self._figure(fig_name='Control Law', t=self.logger.t,
+                     y1=self.logger.u, y1_label='Control Signal',
                      xlabel='time', ylabel='control signal', save=save)
         
-            
-    def _figure(self, fig_name, t, y1, y1_label, y2=None, y2_label=None, xlabel='time', ylabel='signal', save=False):
+    
+    # 绘制时间-信号曲线
+    def _figure(
+            self, 
+            fig_name: str, 
+            t: ListLike, 
+            y1: ListLike, 
+            y1_label: str, 
+            y2: ListLike = None, 
+            y2_label: str = None, 
+            xlabel: str = 'time', 
+            ylabel: str = 'signal', 
+            save: bool = False
+        ):
+        """绘制时间-信号曲线"""
         # 图例添加
         def get_label(label):
             if self.dim != 1:
-                lb = []
-                for i in range(self.dim):
-                    lb.append(label+' {}'.format(i+1))
+                lb = [label+' {}'.format(i+1) for i in range(self.dim)] # NOTE: format格式化字符串的上古语法, 留着以免失传
             else:
                 lb = label
             return lb
@@ -76,7 +131,7 @@ class BaseController(ABC, object):
         lb2 = get_label(y2_label) if y2_label is not None else y2_label
 
         # 绘图
-        pl.figure(self.name + ' ' + fig_name, (10,8)) # 创建绘图窗口
+        pl.figure(f"{self.name} {fig_name}", (10,8)) # 创建绘图窗口
         pl.clf() # 清除原图像
         pl.plot(t, y1, label=lb1) 
         if y2 is not None:
@@ -87,22 +142,23 @@ class BaseController(ABC, object):
         pl.yticks(fontsize = 20) # y轴刻度设置
         pl.grid() # 生成网格
         pl.legend(loc='best', fontsize = 20).set_draggable(True) # 显示图例
-        pl.title(self.name + ' ' + fig_name, fontsize = 20)      # 标题
+        pl.title(f"{self.name} {fig_name}", fontsize = 20)      # 标题
         if save:
-            path = get_path(self.name + ' ' + fig_name + ' .png', self.name)
+            path = self.save_dir / f"{self.name}  {fig_name} {get_str_time()}.png"
             pl.savefig(path)
             
             
-    # 无人机轨迹跟踪控制
-    def _figure3D(self, fig_name, save=False):
+    # 无人机3D轨迹跟踪控制
+    def _figure3D(self, fig_name='无人机轨迹跟踪控制', save=False):
+        """绘制无人机3D轨迹跟踪控制曲线, dim!=3不绘制"""
         if self.dim != 3:
             return
-        v = pl.array(self.list_v) # 参考轨迹
-        y = pl.array(self.list_y) # 实际轨迹
+        v = pl.array(self.logger.v) # 参考轨迹
+        y = pl.array(self.logger.y) # 实际轨迹
         x1 = v[:,0]; y1 = v[:,1]; z1 = v[:,2]
         x2 = y[:,0]; y2 = y[:,1]; z2 = y[:,2]
         
-        fig = pl.figure(self.name + ' ' + fig_name, (10,8)) # 创建绘图窗口
+        fig = pl.figure(f"{self.name} {fig_name}", (10,8)) # 创建绘图窗口
         pl.clf()                              # 清除原图像       
         ax = fig.add_subplot(projection='3d') # 创建3D绘图
         ax.grid()                             # 生成网格
@@ -113,9 +169,9 @@ class BaseController(ABC, object):
         ax.set_ylabel('y')                    # y轴标签
         ax.set_zlabel('z')                    # z轴标签
         ax.legend(loc='best').set_draggable(True) # 显示图例
-        pl.title(self.name + ' ' + fig_name)      # 标题
+        pl.title(f"{self.name} {fig_name}")      # 标题
         if save:
-            path = get_path(self.name + ' ' + fig_name + ' .png', self.name)
+            path = path = self.save_dir / f"{self.name}  {fig_name} {get_str_time()}.png"
             pl.savefig(path)
 
           
@@ -125,12 +181,12 @@ class BaseController(ABC, object):
 
     
             
-''' 一维信号跟踪demo '''          
-def demo0(algo, cfg):
+# 一维阶跃信号跟踪Demo      
+def StepDemo(algo, cfg):
     # 实例化控制算法
     dt = cfg.dt
     ctrl = algo(cfg)
-    print('算法：', ctrl)
+    print(ctrl)
     
     # 生成参考轨迹
     t_list = pl.arange(0.0, 10.0, dt)
@@ -149,17 +205,17 @@ def demo0(algo, cfg):
     y3 = pl.zeros(3)
     
     # 仿真
-    tic()
-    for i in range(len(t_list)):
-        # 获取参考轨迹
-        t = t_list[i]
-        v = v_list[i]
-        # 控制信号产生
-        u = ctrl(v, y3[0])
-        # 动力学环节
-        y3 = PlantModel(y3, u, t, dt)
-
-    toc()
+    with TicToc(CN=False):
+        for i in range(len(t_list)):
+            # 获取参考轨迹
+            t = t_list[i]
+            v = v_list[i]
+            # 控制信号产生
+            u = ctrl(v, y3[0])
+            # 动力学环节
+            y3 = PlantModel(y3, u, t, dt)
+        #end
+    #end
     
     # 绘图
     ctrl.show(save = False)

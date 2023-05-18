@@ -1,50 +1,238 @@
-# 工具包 #
-
-''' MATLAB计时器 '''
+# -*- coding: utf-8 -*-
+"""
+实用工具
+Created on Mon Mar 13 2023 16:06:44
+ 
+@auther: HJ https://github.com/zhaohaojie1998
+"""
+#
+''' PYTHON工具 '''
+import time
+import random
+import os, sys
+import platform
+import numpy as np
+from functools import wraps
 from datetime import datetime
-# 计时开始
-def tic():
-    global tic_
-    tic_ = datetime.now()
-# 计时结束
-def toc():
-    toc_ = datetime.now()
-    print('Elapsed time is %f seconds' % (toc_-tic_).total_seconds())
-    
-    
-''' 路径管理 '''
-import sys, os
-current_path = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在绝对路径
-parent_path = os.path.dirname(current_path) # 父路径
-#sys.path.append(parent_path) # 添加路径到系统路径sys.path
-#sys.path.append(current_path) # 添加路径到系统路径sys.path
 
-def get_path(file_name, algo_name):
-    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-    file_path = os.path.join('.', 'figure', algo_name)
-    if not os.path.exists(file_path):
-        os.makedirs(file_path) # 递归创建目录 .\figure\algo
-        
-    file_name = os.path.splitext(file_name)[0] + current_time \
-                + os.path.splitext(file_name)[-1]
-    file_path = os.path.join(file_path, file_name)
-    return file_path
 
+
+# 获取当前时间
+def get_str_time(mode=0):
+    '''获取当前时间字符串
+    mode=0 : 20230421-133055
+    mode=1 : 2023-04-21 13-30-55
+    mode=any : Dec10_20-22-30_YOGA14s
+    '''
+    if mode == 0:
+        return datetime.now().strftime("%Y%m%d-%H%M%S")                # 20230421-133055
+    elif mode == 1:
+        return datetime.now().strftime("%Y-%m-%d %H-%M-%S")            # 2023-04-21 13-30-55
+    return datetime.now().strftime("%b%d_%H-%M-%S_") + platform.node() # Dec10_20-22-30_YOGA14s
+
+
+
+# matlab计时器
+def tic(): 
+    '''计时开始'''
+    if 'global_tic_time' not in globals():
+        global global_tic_time
+        global_tic_time = []
+    global_tic_time.append(time.time())
     
+def toc(name='', *, CN=True, digit=6): 
+    '''计时结束'''
+    if 'global_tic_time' not in globals() or not global_tic_time: # 未设置全局变量或全局变量为[]
+        print('未设置tic' if CN else 'tic not set')  
+        return
+    name = name+' ' if (name and not CN) else name
+    if CN:
+        print('%s历时 %f 秒。' % (name, round(time.time() - global_tic_time.pop(), digit)))
+    else:
+        print('%sElapsed time is %f seconds.' % (name, round(time.time() - global_tic_time.pop(), digit)))
+
+
+
+
+# 函数计时装饰器
+def run_time_wraps(func=None, /, *, name='', CN=True, digit=6):
+    '''函数计时器\n
+    >>> @run_time_wraps # or @run_time_wraps(kwarg=...)
+    >>> def func(...):
+    >>>     ...
+    '''
+    name = name+' ' if (name and not CN) else name
   
-# ''' 设置随机数种子 '''
-# import os
-# import torch
-# import numpy as np
-# import random
-# def setup_seed(seed):
-#      torch.manual_seed(seed)            # 为CPU设置随机种子
-#      torch.cuda.manual_seed(seed)       # 为当前GPU设置随机种子
-#      torch.cuda.manual_seed_all(seed)   # 为所有GPU设置随机种子
-#      torch.backends.cudnn.deterministic = True
-#      #torch.backends.cudnn.benchmark = False
-#      #torch.backends.cudnn.enabled = False
-#      np.random.seed(seed)               # 为numpy设置随机种子
-#      random.seed(seed)                  # 为random设置随机种子
-#      os.environ['PYTHONHASHSEED'] = str(seed) # 为了禁止hash随机化，使得实验可复现。
-     
+    def decorator(func):
+        @wraps(func) # 装饰器不修改原函数信息
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            res = func(*args, **kwargs)
+            stop_time = time.time()
+            if CN:
+                print('%s历时 %f 秒。' %(name, round(stop_time - start_time, digit)))
+            else:
+                print('%sElapsed time is %f seconds.' %(name, round(stop_time - start_time, digit)))
+            return res
+        return wrapper # 返回被装饰的函数
+    
+    if func is None:
+        return decorator # @run_time(), 返回一个装饰器
+        # func = run_time(param=...)(func)
+    else:
+        return decorator(func) # @run_time, 返回被装饰的函数
+        # func = run_time(func)
+
+
+
+
+
+# 多功能计时器
+class TicToc:
+    '''# 多功能计时器\n
+    模式0 - 上下文管理:
+    >>> In [0]: with TicToc(name='MyCode'):
+    >>>             code block
+    >>> Out[0]: MyCode历时 0.000001 秒。\n
+    模式1 - 函数装饰器:
+    >>> In [1]: @TicToc(name='MyFunc', digit=3)
+    >>>         def func1():
+    >>>             ...
+    >>>         @TicToc # 不推荐该用法, 可改成 @TicToc()
+    >>>         def func2():
+    >>>             ...
+    >>>         func1() # func1为被装饰的func1
+    >>>         func2() # func2为TicToc的实例对象
+    >>> Out[1]: MyFunc历时 0.001 秒。
+    >>>         历时 0.000001 秒。\n
+    模式2 - Matlab工具:
+    >>> In [2]: t = TicToc(CN=False)
+    >>>         t.tic
+    >>>         time.sleep(1)
+    >>>         if 1:
+    >>>             t.tic
+    >>>             time.sleep(2)
+    >>>             t.toc
+    >>>         t.toc # or: total_time = t.toc
+    >>> Out[2]: Elapsed time is 2.000003 seconds.
+    >>>         Elapsed time is 3.000005 seconds.
+    '''
+
+    def __init__(self, func=None, /, *, name='', CN=True, digit=6):
+        self.func = func
+        self.name = name+' ' if (name and not CN) else name
+        self.CN = CN
+        self.digit = digit
+        self.__tic_time = []
+
+    # with上下文管理 -> with TicToc(): 
+    def __enter__(self):
+        self.tic
+    def __exit__(self, type, value, traceback):
+        self.toc
+
+    # 函数装饰器 -> @TicToc, @TicToc()
+    def __call__(self, *args, **kwargs):
+        # @TicToc() -> 返回被装饰的函数对象 -> func = TicToc()(func)
+        if self.func is None:
+            func = args[0] # 此时func为arg里的第一个参数
+            @wraps(func) # 装饰器不修改原函数信息
+            def wrapper(*params, **kw_params):
+                self.tic
+                res = func(*params, **kw_params)
+                self.toc
+                return res
+            return wrapper
+        # @TicToc -> 返回TicToc的可调用实例对象 -> func = TicToc(func), func(...) == TicToc_obj(...)
+        else:
+            self.tic
+            res = self.func(*args, **kwargs)
+            self.toc
+            return res
+
+    # matlab计时器 -> T.tic, T.toc
+    @property
+    def tic(self):
+        self.__tic_time.append(time.time())
+    
+    @property
+    def toc(self) -> float:
+        if not self.__tic_time:
+            print('未设置tic' if self.CN else 'tic not set')  
+            return
+        elapsed = time.time() - self.__tic_time.pop()   
+        if self.CN: print(f'{self.name}历时 {round(elapsed, self.digit)} 秒。')
+        else: print(f'{self.name}Elapsed time is {round(elapsed, self.digit)} seconds.')
+        return elapsed
+
+
+
+
+
+# 随机种子设置
+def setup_seed(seed=None):
+    '''为torch, torch.cuda, numpy, random设置随机种子'''
+    if seed is None: return
+    try:
+        import torch
+        torch.manual_seed(seed)            # 为CPU设置随机种子
+        torch.cuda.manual_seed(seed)       # 为当前GPU设置随机种子
+        torch.cuda.manual_seed_all(seed)   # 为所有GPU设置随机种子
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.enabled = False
+    finally:
+        np.random.seed(seed)               # 为numpy设置随机种子
+        random.seed(seed)                  # 为random设置随机种子
+        os.environ['PYTHONHASHSEED'] = str(seed) # 禁止hash随机化
+
+
+
+
+
+# 优雅的输出工具
+class IOStream:
+    def __init__(self, file):
+        self.file = file
+
+    def __lshift__(self, other):
+        # self << other
+        self.file.write(str(other))
+        return self
+
+cout = IOStream(sys.stdout)
+'''std::cout'''
+cerr = IOStream(sys.stderr)
+'''std::cerr'''
+endl = '\n'
+'''std::endl'''
+
+
+
+
+__all__ = [
+    'get_str_time',
+    'tic',
+    'toc',
+    'TicToc',
+    'run_time_wraps',
+    'setup_seed',
+    'cout',
+    'cerr',
+    'endl',
+]
+
+
+
+
+
+if __name__ == '__main__':
+
+    with TicToc(name='测试1'):
+        cout << '你干嘛~~~ 哈哈~ 唉哟~ ' << endl
+    
+    @TicToc(name='测试2')
+    def test_func():
+        cerr << '哇, 贞德士泥鸭' << endl
+
+    test_func()
