@@ -19,7 +19,7 @@ from common import BaseController, SignalLike, StepDemo
 class PIDConfig:
     """PID控制算法参数
     :param dt: float, 仿真步长
-    :param dim: int, 信号维度, 即控制器输入v、y和输出u的维度
+    :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
     :param Ki: SignalLike, PID积分增益系数
     :param Kd: SignalLike, PID微分增益系数
@@ -27,15 +27,13 @@ class PIDConfig:
     :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
     :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
     :param max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
-    :Type : SignalLike = float | list / ndarray (一维数组即向量)\n
+    :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
     备注:\n
-    dim为需要跟踪的信号v, 实际信号y, 和控制量u的长度, 此时v/y/u为一维数组list/ndarray\n
-    dim>1时SignalLike为向量时相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
-    dim=1时SignalLike为标量或长度为1的向量, 此时设计了1个控制器\n
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
     """
     dt: float = 0.001            # 仿真步长 (float)
-    dim: int = 1                 # 控制器维度 (int)
+    dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
     Kp: SignalLike = 5           # 比例增益 (float or list)
     Ki: SignalLike = 0.001       # 积分增益 (float or list)
@@ -56,26 +54,26 @@ class PID(BaseController):
         super().__init__()
         self.name = 'PID'      # 算法名称
         self.dt = cfg.dt       # 仿真步长
-        self.dim = cfg.dim     # 控制器维度n
+        self.dim = cfg.dim     # 反馈信号y和跟踪信号v的维度
         
         # PID超参（不需要遍历的数据设置为一维数组）
-        self.Kp = pl.array(cfg.Kp).flatten() # Kp array(n,) or array(1,)
-        self.Ki = pl.array(cfg.Ki).flatten() # Ki array(n,) or array(1,)
-        self.Kd = pl.array(cfg.Kd).flatten() # Kd array(n,) or array(1,)
+        self.Kp = pl.array(cfg.Kp).flatten() # Kp array(dim,) or array(1,)
+        self.Ki = pl.array(cfg.Ki).flatten() # Ki array(dim,) or array(1,)
+        self.Kd = pl.array(cfg.Kd).flatten() # Kd array(dim,) or array(1,)
         self.Kaw = pl.array(cfg.Kaw).flatten() / self.Kd # Kaw取 0.1~0.3 Kd
         
         # 抗积分饱和PID（需要遍历的数据设置为一维数组，且维度保持和dim一致）
-        self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(n,)
-        self.u_max = self.u_max.repeat(self.dim) if len(self.u_max) == 1 else self.u_max # array(n,)
-        self.u_min = pl.array(cfg.u_min).flatten() # array(1,) or array(n,)
-        self.u_min = self.u_min.repeat(self.dim) if len(self.u_min) == 1 else self.u_min # array(n,)
-        self.max_err = pl.array(cfg.max_err).flatten() # array(1,) or array(n,)
-        self.max_err = self.max_err.repeat(self.dim) if len(self.max_err) == 1 else self.u_min # array(n,)
+        self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
+        self.u_max = self.u_max.repeat(self.dim) if len(self.u_max) == 1 else self.u_max # array(dim,)
+        self.u_min = pl.array(cfg.u_min).flatten() # array(1,) or array(dim,)
+        self.u_min = self.u_min.repeat(self.dim) if len(self.u_min) == 1 else self.u_min # array(dim,)
+        self.max_err = pl.array(cfg.max_err).flatten() # array(1,) or array(dim,)
+        self.max_err = self.max_err.repeat(self.dim) if len(self.max_err) == 1 else self.u_min # array(dim,)
         
         # 控制器初始化
-        self.u = pl.zeros(self.dim)            # array(n,)
-        self.error_last = pl.zeros(self.dim)   # array(n,)
-        self.integration = pl.zeros(self.dim)  # array(n,)
+        self.u = pl.zeros(self.dim)            # array(dim,)
+        self.error_last = pl.zeros(self.dim)   # array(dim,)
+        self.integration = pl.zeros(self.dim)  # array(dim,)
         self.t = 0
         
         # 存储器
@@ -84,13 +82,13 @@ class PID(BaseController):
         self.logger.i = []    # 误差积分
     
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, v, y) -> SignalLike:
+    def __call__(self, v, y) -> pl.ndarray:
         # 计算PID误差
-        error = pl.array(v - y).flatten()              # P偏差 array(n,)
-        differential = error - self.error_last         # D偏差 array(n,)
+        error = pl.array(v - y).flatten()              # P偏差 array(dim,)
+        differential = error - self.error_last         # D偏差 array(dim,)
         
         # 抗积分饱和算法
-        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
+        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
         
         # 控制量
         self.u = self.Kp * error + beta * self.Ki * self.integration + self.Kd * differential
@@ -164,9 +162,6 @@ class PID(BaseController):
                      y1=self.logger.i, y1_label='integration of error',
                      xlabel='time', ylabel='error integration signal', save=save)
         
-        # 3D数据轨迹跟踪曲线
-        self._figure3D(save=save)
-        
         # 显示图像
         pl.show()
         
@@ -185,12 +180,12 @@ class IncrementPID(PID):
         
     def __call__(self, v, y):
         # 计算PID误差
-        error = pl.array(v - y).flatten()              # P偏差 array(n,)
-        differential = error - self.error_last         # D偏差 array(n,)
+        error = pl.array(v - y).flatten()              # P偏差 array(dim,)
+        differential = error - self.error_last         # D偏差 array(dim,)
         
         # 抗积分饱和算法
         self.integration = pl.zeros(self.dim)             # 积分增量 integration = error - 反馈信号
-        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(n,)
+        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
         
         # 控制量
         u0 = self.Kp * (error - self.error_last) + beta * self.Ki * self.integration \
