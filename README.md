@@ -2,18 +2,20 @@
 
 ## 控制算法:
 
-| 算法名                                               | 类名         | 性质   | 备注                            |
-| ---------------------------------------------------- | ------------ | ------ | ------------------------------- |
-| 位置式PID控制<br />Proportion Integral Differential  | PID          | 无模型 | 自带抗积分饱和+积分分离功能     |
-| 增量式PID控制<br />Increment PID Control             | IncrementPID | 无模型 | 自带抗积分饱和+积分分离功能     |
-| 自抗扰控制<br />Active Disturbance Rejection Control | ADRC         | 无模型 | 参数巨多。。。                  |
-| 线性二次型调节器<br />Linear Quadratic Regulator     | LQR          | 有模型 | 支持线性时变系统                |
-| 启发算法控制                                         |              | 有模型 | Flag                            |
-| 强化学习控制                                         |              | 有模型 | 需要pytorch，会降低CTRL的通用性 |
+| 算法名                                               | 类名         | 性质   | 备注                                                              |
+| ---------------------------------------------------- | ------------ | ------ | ----------------------------------------------------------------- |
+| 位置式PID控制<br />Proportion Integral Differential  | PID          | 无模型 | 自带抗积分饱和+积分分离功能                                       |
+| 增量式PID控制<br />Increment PID Control             | IncrementPID | 无模型 | 自带抗积分饱和+积分分离功能                                       |
+| 自抗扰控制<br />Active Disturbance Rejection Control | ADRC         | 无模型 | 缺点：参数巨多。。。                                              |
+| 线性二次型调节器<br />Linear Quadratic Regulator     | LQR          | 有模型 | 支持线性时变系统<br />缺点：强依赖模型，且必须已知v的全部轨迹信息 |
+| 智能/启发搜索算法控制<br />AI Search Control         | None         | 有模型 | 模型只用来评估搜索结果的好坏                                      |
+| 深度强化学习控制<br />DRL Control                    | None         | 有模型 | 模型只用来产生训练数据                                            |
+
+PID跟踪控制yyds，可以考虑AI给PID或ADRC调参，LQR调节器（v=0）用来搞跟踪控制（v!=0）太难了。。。。
 
 ## 控制器接口:
 
-用于跟踪控制或反馈控制，即y信号（真实状态）跟踪v信号（理想状态），控制器输入v和y，输出控制量u
+用于跟踪控制或反馈控制，即y信号（真实状态/观测）跟踪v信号（理想状态/观测），控制器输入v和y，输出控制量u
 
 ![](Ctrl.png)
 
@@ -25,15 +27,15 @@ v、y为形状为(dim, )的向量（一维ndarray），或float标量
 
 u为形状为(dim_u, )的向量（一维ndarray），无论v、y是否为标量，输出u都是向量，即使dim_u=1时也不输出float
 
-对于PID/ADRC控制器：dim==dim_u，对于LQR控制器：dim不一定等于dim_u
+对于PID/ADRC控制器：dim==dim_u，对于LQR/AI控制器：dim不一定等于dim_u
 
 ###### 控制器参数：
 
-超参为(dim, )或(dim_u, )的向量（设置成一维list或ndarray），array长度取决于公式（是与v、y相乘的参数还是与u相乘的参数）
+超参为(dim, )或(dim_u, )的向量（设置成一维list或ndarray），array长度取决于公式是与v、y相乘的array还是与u相乘的array
 
 超参设置成float时，将自动广播成(dim, )或(dim_u, )的向量
 
-对于LQR控制器，超参为F、Q、R矩阵（设置成二维list或ndarray)
+对于LQR控制器，超参为Qf、Q、R矩阵（设置成二维list或ndarray)，且要已知v信号轨迹
 
 ## 用法示例:
 
