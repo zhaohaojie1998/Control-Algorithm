@@ -18,7 +18,7 @@ from common import BaseController, SignalLike, ListLike, StepDemo
 @dataclass
 class ADRCConfig:
     """ADRC自抗扰控制算法参数
-    :param dt: float, 仿真步长
+    :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维
     :param h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt
     :param r: SignalLike, 跟踪微分器(TD)快速跟踪因子
@@ -33,11 +33,11 @@ class ADRCConfig:
     :param beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
     :Type : SignalLike = float (标量) 或 list / ndarray (一维数组即向量)\n
     备注:\n
-    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)\n
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的ADRC控制器, 控制效果可能不好\n
     """
 
-    dt: float = 0.001              # 仿真步长 (float)
+    dt: float = 0.001              # 控制器步长 (float)
     dim: int = 1                   # 输入维度 (int)
     # 跟踪微分器
     h: float = None                # 滤波因子，系统调用步长，默认None设置成dt (float)

@@ -18,7 +18,7 @@ from common import BaseController, SignalLike, StepDemo
 @dataclass
 class PIDConfig:
     """PID控制算法参数
-    :param dt: float, 仿真步长
+    :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
     :param Ki: SignalLike, PID积分增益系数
@@ -29,10 +29,10 @@ class PIDConfig:
     :param max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
     :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
     备注:\n
-    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)\n
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好\n
     """
-    dt: float = 0.001            # 仿真步长 (float)
+    dt: float = 0.001            # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
     Kp: SignalLike = 5           # 比例增益 (float or list)
@@ -53,7 +53,7 @@ class PID(BaseController):
     def __init__(self, cfg: PIDConfig):
         super().__init__()
         self.name = 'PID'      # 算法名称
-        self.dt = cfg.dt       # 仿真步长
+        self.dt = cfg.dt       # 控制器步长
         self.dim = cfg.dim     # 反馈信号y和跟踪信号v的维度
         
         # PID超参（不需要遍历的数据设置为一维数组）

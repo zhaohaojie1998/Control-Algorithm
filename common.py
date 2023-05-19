@@ -32,7 +32,7 @@ class BaseController(ABC):
     def __init__(self):
         # common参数
         self.name = 'Controller'
-        self.dt = 0.001
+        self.dt = 0.001  # 控制器步长
         self.dim = 1     # 反馈信号y和跟踪信号v的维度
         
         # 绘图数据存储器
@@ -73,7 +73,7 @@ class BaseController(ABC):
 
         Return
         ------
-        u : NdArray (向量)
+        u : ndarray (向量)
             输出控制量u, 输入为标量时输出也为向量
         """
         raise NotImplementedError
@@ -155,7 +155,7 @@ class BaseController(ABC):
             
             
     # 无人机3D轨迹跟踪控制
-    def _figure3D(self, fig_name='无人机轨迹跟踪控制', save=False):
+    def _figure3D(self, fig_name='轨迹跟踪控制', save=False):
         """绘制无人机3D轨迹跟踪控制曲线, dim!=3不绘制"""
         if self.dim != 3:
             return
