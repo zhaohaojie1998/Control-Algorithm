@@ -10,24 +10,29 @@ Created on Wed Jul 27 15:19:50 2022
 
 import pylab as pl
 from copy import deepcopy
+from dataclasses import dataclass
 from common import BaseController, SignalLike, StepDemo
 
 
 # LQR控制器初始参数设置
+@dataclass
 class LQRConfig:
     """LQR控制算法参数
     """
-    def __init__(self):
-        self.dt = 0.001        # 仿真步长 (float)
-        self.dim = 1           # 控制器维度 (int)
-        
-        self.Q = []
-        self.Qf = []
-        self.R = []
-        
-        # model init
-        self.A = []
-        self.B = []
+    dt = 0.001        # 仿真步长 (float)
+   
+    A = [] # (n, n)
+    B = [] # (n, m)
+    C = [] # (dim, n)
+    
+    
+    Q = [] # (dim, dim)
+    Qf = [] # (dim, dim)
+    R = [] # (dim, dim)
+    
+    # model init
+    A = []
+    B = []
         
         
 
@@ -40,6 +45,7 @@ class LQR(BaseController):
         self.name = 'LQR'      # 算法名称
         self.dt = cfg.dt       # 仿真步长
         self.dim = cfg.dim     # 状态方程维度n
+        
         
 
         # 控制器初始化

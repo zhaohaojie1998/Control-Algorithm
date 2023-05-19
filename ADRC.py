@@ -19,7 +19,7 @@ from common import BaseController, SignalLike, ListLike, StepDemo
 class ADRCConfig:
     """ADRC自抗扰控制算法参数
     :param dt: float, 仿真步长
-    :param dim: int, 信号维度, 即控制器输入v、y和输出u的维度
+    :param dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维
     :param h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt
     :param r: SignalLike, 跟踪微分器(TD)快速跟踪因子
     :param b0: SignalLike, 扩张状态观测器(ESO)被控系统系数
@@ -31,16 +31,14 @@ class ADRCConfig:
     :param alpha2: SignalLike, NLSEF参数, alpha2 > 1
     :param beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益
     :param beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
-    :Type : SignalLike = float | list / ndarray (一维数组即向量)\n
+    :Type : SignalLike = float (标量) 或 list / ndarray (一维数组即向量)\n
     备注:\n
-    dim为需要跟踪的信号v, 实际信号y, 和控制量u的长度, 此时v/y/u为一维数组list/ndarray\n
-    dim>1时SignalLike为向量时相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
-    dim=1时SignalLike为标量或长度为1的向量, 此时设计了1个控制器\n
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的控制器, 必须满足dim==len(SignalLike)\n
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的控制器, 控制效果可能不好\n
     """
 
     dt: float = 0.001              # 仿真步长 (float)
-    dim: int = 1                   # 控制器维度 (int)
+    dim: int = 1                   # 输入维度 (int)
     # 跟踪微分器
     h: float = None                # 滤波因子，系统调用步长，默认None设置成dt (float)
     r: SignalLike = 100.           # 快速跟踪因子 (float or list)
@@ -70,7 +68,7 @@ class ADRC(BaseController):
         super().__init__()
         self.name = 'ADRC'       # 算法名称
         self.dt = cfg.dt         # 仿真步长
-        self.dim = cfg.dim       # 控制器维度n
+        self.dim = cfg.dim       # 反馈信号y和跟踪信号v的维度
         # TD超参
         self.r = pl.array(cfg.r).flatten()           # 快速跟踪因子
         self.h = pl.array(cfg.h).flatten()           # 滤波因子，系统调用步长
@@ -87,12 +85,12 @@ class ADRC(BaseController):
         self.beta2 = pl.array(cfg.beta2).flatten()   # 跟踪微分信号增益
         
         # 控制器初始化
-        self.v1 = pl.zeros(self.dim) # array(n,)
-        self.v2 = pl.zeros(self.dim) # array(n,)
-        self.z1 = pl.zeros(self.dim) # array(n,)
-        self.z2 = pl.zeros(self.dim) # array(n,)
-        self.z3 = pl.zeros(self.dim) # array(n,)
-        self.u = pl.zeros(self.dim) # array(n,)
+        self.v1 = pl.zeros(self.dim) # array(dim,)
+        self.v2 = pl.zeros(self.dim) # array(dim,)
+        self.z1 = pl.zeros(self.dim) # array(dim,)
+        self.z2 = pl.zeros(self.dim) # array(dim,)
+        self.z3 = pl.zeros(self.dim) # array(dim,)
+        self.u = pl.zeros(self.dim) # array(dim,)
         self.t = 0
         
         # 存储器
@@ -151,29 +149,29 @@ class ADRC(BaseController):
         # u0 = -self.fhan(e1, e2, self.r, self.h)
         # c = 1.5
         # u0 = -self.fhan(e1, c*e2, self.r, self.h)
-        return u0
+        return u0 # (dim, )
     
     def _fhan(self, x1, x2, r, h):
         def fsg(x, d):
             return (sign(x + d) - sign(x - d)) / 2
-        d = r * h**2  # array(n,)
-        a0 = h * x2   # array(n,)
-        y = x1 + a0   # array(n,)
-        a1 = sqrt(d * (d + 8*abs(y)))  # array(n,)
-        a2 = a0 + sign(y) * (a1 - d) / 2  # array(n,)
-        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))  # array(n,)
-        fh = -r * (a/d) * fsg(y, d) - r * sign(a) * (1 - fsg(a, d))  # array(n,)
+        d = r * h**2  # array(dim,)
+        a0 = h * x2   # array(dim,)
+        y = x1 + a0   # array(dim,)
+        a1 = sqrt(d * (d + 8*abs(y)))  # array(dim,)
+        a2 = a0 + sign(y) * (a1 - d) / 2  # array(dim,)
+        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))  # array(dim,)
+        fh = -r * (a/d) * fsg(y, d) - r * sign(a) * (1 - fsg(a, d))  # array(dim,)
         return fh
     
     def _fal(self, e, alpha, delta):
-        ##  alpha和delta维度可以为1，也可以为n    ##
+        ##  alpha和delta维度可以为1，也可以为dim    ##
         ##  数据类型可以为 int float list array   ##
-        alpha = pl.array(alpha).flatten() # array(m,) m = 1 or m = n
-        delta = pl.array(delta).flatten() # array(m,) m = 1 or m = n
-        alpha = alpha.repeat(self.dim) if len(alpha) == 1 else alpha # array(n,)
-        delta = delta.repeat(self.dim) if len(delta) == 1 else delta # array(n,)
+        alpha = pl.array(alpha).flatten() # array(m,) m = 1 or m = dim
+        delta = pl.array(delta).flatten() # array(m,) m = 1 or m = dim
+        alpha = alpha.repeat(self.dim) if len(alpha) == 1 else alpha # array(dim,)
+        delta = delta.repeat(self.dim) if len(delta) == 1 else delta # array(dim,)
         
-        fa = pl.zeros(self.dim) # array(n,)
+        fa = pl.zeros(self.dim) # array(dim,)
         for i in range(self.dim):
             if abs(e[i]) <= delta[i]:
                 fa[i] = e[i] / delta[i]**(alpha[i]-1)
@@ -212,9 +210,6 @@ class ADRC(BaseController):
                      y2=interference, y2_label='real interference',
                      xlabel='time', ylabel='interference signal', save=save)
         
-        # 3D数据轨迹跟踪
-        self._figure3D(save=save)
-
         # 显示图像
         pl.show()
             

@@ -18,7 +18,10 @@ ListLike = Union[list, pl.ndarray]
 """绘图数据"""
 
 SignalLike = Union[float, list, pl.ndarray]
-"""信号数据, 标量或向量"""
+"""输入信号/超参, 标量或向量"""
+
+NdArray = pl.ndarray
+"""控制信号, 向量"""
 
 
 class Logger:
@@ -30,7 +33,7 @@ class BaseController(ABC):
         # common参数
         self.name = 'Controller'
         self.dt = 0.001
-        self.dim = 1     # 跟踪信号维度
+        self.dim = 1     # 反馈信号y和跟踪信号v的维度
         
         # 绘图数据存储器
         self.logger = Logger()
@@ -48,7 +51,7 @@ class BaseController(ABC):
         
 
     @abstractmethod
-    def __call__(self, v: SignalLike, y: SignalLike) -> SignalLike:
+    def __call__(self, v: SignalLike, y: SignalLike) -> pl.ndarray:
         """控制器输入输出接口
 
         Ctrller
@@ -70,8 +73,8 @@ class BaseController(ABC):
 
         Return
         ------
-        u : SignalLike (标量或向量)
-            输出控制量u
+        u : NdArray (向量)
+            输出控制量u, 输入为标量时输出也为向量
         """
         raise NotImplementedError
     
@@ -104,6 +107,9 @@ class BaseController(ABC):
         self._figure(fig_name='Control Law', t=self.logger.t,
                      y1=self.logger.u, y1_label='Control Signal',
                      xlabel='time', ylabel='control signal', save=save)
+        
+        # # 3D数据轨迹跟踪
+        self._figure3D(save=save)
         
     
     # 绘制时间-信号曲线
@@ -187,11 +193,9 @@ def StepDemo(algo, cfg):
     dt = cfg.dt
     ctrl = algo(cfg)
     print(ctrl)
-    
     # 生成参考轨迹
     t_list = pl.arange(0.0, 10.0, dt)
     v_list = pl.sign(pl.sin(t_list))
-    
     # 定义动力学模型
     def PlantModel(y, u, t, dt):
         y1 = pl.zeros(3)
@@ -200,10 +204,8 @@ def StepDemo(algo, cfg):
         y1[1] = y[1] + y[2] * dt + 0.001*pl.randn(1)
         y1[2] = f + 133 * u
         return y1
-    
     # 初始化状态
     y3 = pl.zeros(3)
-    
     # 仿真
     with TicToc(CN=False):
         for i in range(len(t_list)):
@@ -216,6 +218,4 @@ def StepDemo(algo, cfg):
             y3 = PlantModel(y3, u, t, dt)
         #end
     #end
-    
-    # 绘图
     ctrl.show(save = False)
