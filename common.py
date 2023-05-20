@@ -46,7 +46,7 @@ class BaseController(ABC):
         self.save_dir = Path('figure', self.name)
 
 
-    def __repr__(self):
+    def __str__(self):
         return self.name +' Controller'
         
 
