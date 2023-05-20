@@ -41,7 +41,7 @@ u为形状为(dim_u, )的向量（一维ndarray），无论v、y是否为标量�
 
 ```python
 import numpy as np
-from PID import PID, PIDConfig
+from pid import PID, PIDConfig
 # 设置控制器
 dim = 2 # 信号维度
 cfg = PIDConfig(dt=0.1, dim=dim, Kp=[5,6], Ki=0.1, Kd=1) # 调参
