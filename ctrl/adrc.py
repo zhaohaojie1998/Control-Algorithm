@@ -11,7 +11,13 @@ Created on Sat Jun 18 15:27:34 2022
 import pylab as pl
 from pylab import sign, sqrt
 from dataclasses import dataclass
-from common import BaseController, SignalLike, ListLike, StepDemo
+
+if __name__ == '__main__':
+    import sys, os
+    ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
+    sys.path.append(ctrl_dir)
+
+from ctrl.common import BaseController, SignalLike, ListLike, StepDemo
 
 
 # ADRC控制器参数
@@ -223,5 +229,6 @@ __all__ = ['ADRCConfig', 'ADRC']
 
 'debug'
 if __name__ == '__main__':
+ 
     cfg = ADRCConfig()
     StepDemo(ADRC, cfg)

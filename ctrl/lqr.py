@@ -11,7 +11,13 @@ from typing import Union
 import pylab as pl
 from copy import deepcopy
 from dataclasses import dataclass
-from common import BaseController, SignalLike, StepDemo
+
+if __name__ == '__main__':
+    import sys, os
+    ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
+    sys.path.append(ctrl_dir)
+    
+from ctrl.common import BaseController, SignalLike, StepDemo
 
 EyeLike = Union[int, float]
 """类似单位矩阵的矩阵简单表示\n

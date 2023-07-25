@@ -9,9 +9,9 @@ Created on Sat Jul 23 23:59:33 2022
 ''' 控制器 '''
 from typing import Union
 from abc import ABC, abstractmethod
-from utils import get_str_time, TicToc
 from pathlib import Path
 import pylab as pl
+from ctrl.utils import get_str_time, TicToc
 
 
 ListLike = Union[list, pl.ndarray]
