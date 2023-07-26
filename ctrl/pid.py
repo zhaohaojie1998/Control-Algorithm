@@ -17,7 +17,10 @@ if __name__ == '__main__':
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
     
-from ctrl.common import BaseController, SignalLike, StepDemo
+from ctrl.common import BaseController, SignalLike
+from ctrl.demo import *
+
+__all__ = ['PIDConfig', 'PID', 'IncrementPID']
 
 
 # PID控制器参数
@@ -213,16 +216,17 @@ class IncrementPID(PID):
         
         self.t += self.dt
         return self.u
-        
-    
-    
 
-__all__ = ['PIDConfig', 'PID', 'IncrementPID']
+
+
+
 
 
 
 
 'debug'
 if __name__ == '__main__':
+    with_noise = True
     cfg = PIDConfig()
-    StepDemo(PID, cfg)
+    StepDemo(PID, cfg, with_noise)
+    CosDemo(PID, cfg, with_noise)

@@ -7,11 +7,11 @@ Created on Sat Jul 23 23:59:33 2022
 """
 
 ''' 控制器 '''
-from typing import Union
+from typing import Union, Callable
 from abc import ABC, abstractmethod
 from pathlib import Path
 import pylab as pl
-from ctrl.utils import get_str_time, TicToc
+from ctrl.utils import get_str_time
 
 
 ListLike = Union[list, pl.ndarray]
@@ -28,6 +28,7 @@ class Logger:
     pass
 
 
+# 控制器
 class BaseController(ABC):
     def __init__(self):
         # common参数
@@ -180,42 +181,27 @@ class BaseController(ABC):
             path = path = self.save_dir / f"{self.name}  {fig_name} {get_str_time()}.png"
             pl.savefig(path)
 
-          
 
 
 
+# DRL控制器
+class BaseDRLController(BaseController):
+    """强化学习控制器"""
 
+    def __init__(self):
+        super().__init__()
+        self.name = 'DRL Controller'
+        self.model_dir = Path('networks', self.name)
+
+    @abstractmethod
+    def train(self, plant: Callable[[SignalLike], SignalLike], max_time_step: int, max_epoch: int):
+        """强化学习训练接口"""
+
+        # NOTE plant deepcopy 一下, 防止改变时序
+        raise NotImplementedError
+
+    def _env_reset(self):
+        raise NotImplementedError
     
-            
-# 一维阶跃信号跟踪Demo      
-def StepDemo(algo, cfg):
-    # 实例化控制算法
-    dt = cfg.dt
-    ctrl = algo(cfg)
-    print(ctrl)
-    # 生成参考轨迹
-    t_list = pl.arange(0.0, 10.0, dt)
-    v_list = pl.sign(pl.sin(t_list))
-    # 定义动力学模型
-    def PlantModel(y, u, t, dt):
-        y1 = pl.zeros(3)
-        f = -25 * y[1] + 33 * pl.sin(pl.pi*t) + 0.01*pl.randn(1)
-        y1[0] = y[0] + y[1] * dt + 0.001*pl.randn(1)
-        y1[1] = y[1] + y[2] * dt + 0.001*pl.randn(1)
-        y1[2] = f + 133 * u
-        return y1
-    # 初始化状态
-    y3 = pl.zeros(3)
-    # 仿真
-    with TicToc(CN=False):
-        for i in range(len(t_list)):
-            # 获取参考轨迹
-            t = t_list[i]
-            v = v_list[i]
-            # 控制信号产生
-            u = ctrl(v, y3[0])
-            # 动力学环节
-            y3 = PlantModel(y3, u, t, dt)
-        #end
-    #end
-    ctrl.show(save = False)
+    def _env_step(self):
+        raise NotImplementedError

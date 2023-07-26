@@ -8,8 +8,8 @@
 | 增量式PID控制<br />Increment PID Control             | IncrementPID | 无模型 | 自带抗积分饱和+积分分离功能                                       |
 | 自抗扰控制<br />Active Disturbance Rejection Control | ADRC         | 无模型 | 缺点：参数巨多。。。                                              |
 | 线性二次型调节器<br />Linear Quadratic Regulator     | LQR          | 有模型 | 支持线性时变系统<br />缺点：强依赖模型，且必须已知v的全部轨迹信息 |
-| 智能/启发搜索算法控制<br />AI Search Control         | None         | 有模型 | 模型只用来评估搜索结果的好坏                                      |
-| 深度强化学习控制<br />DRL Control                    | None         | 有模型 | 模型只用来产生训练数据                                            |
+| 智能/启发搜索算法控制<br />AI Search Control         | GWO          | 有模型 | 模型只用来评估搜索结果的好坏                                      |
+| 深度强化学习控制<br />DRL Control                    | SAC/DQN      | 有模型 | 模型只用来产生训练数据                                            |
 
 PID跟踪控制yyds，可以考虑AI给PID或ADRC调参，LQR调节器（v=0）用来搞跟踪控制（v!=0）太难了。。。。
 
@@ -41,11 +41,11 @@ u为形状为(dim_u, )的向量（一维ndarray），无论v、y是否为标量�
 
 ```python
 import numpy as np
-from pid import PID, PIDConfig
+from ctrl import PID, PIDConfig
 # 设置控制器
 dim = 2 # 信号维度
 cfg = PIDConfig(dt=0.1, dim=dim, Kp=[5,6], Ki=0.1, Kd=1) # 调参
-ctrl = PID(cfg) # 实例化控制器
+pid = PID(cfg) # 实例化控制器
 # 生成输入信号
 t_list = np.arange(0.0, 10.0, dt=cfg.dt)
 v_list = np.ones((len(t_list), dim)) # 需要跟踪的信号 v: (dim, )
@@ -56,12 +56,12 @@ def PlantModel(y, u, dt=cfg.dt):
 # 仿真
 y = np.zeros(2) # 被控信号初值 (dim, )
 for v in v_list:
-    u = ctrl(v, y) # 调用控制器
+    u = pid(v, y) # 调用控制器
     y = PlantModel(y, u) # 更新被控信号
-ctrl.show() # 绘图输出
+pid.show() # 绘图输出
 ```
 
-## 阶跃信号跟踪效果图:
+## 参考信号跟踪效果图:
 
 ##### 1.PID控制算法：
 
@@ -82,3 +82,9 @@ python >= 3.9
 numpy >= 1.22.3
 
 matplotlib >= 3.5.1
+
+scipy >= 1.7.3
+
+可选：
+
+pytorch >= 1.10.2

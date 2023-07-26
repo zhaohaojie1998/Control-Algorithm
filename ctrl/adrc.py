@@ -17,7 +17,10 @@ if __name__ == '__main__':
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
 
-from ctrl.common import BaseController, SignalLike, ListLike, StepDemo
+from ctrl.common import BaseController, SignalLike, ListLike
+from ctrl.demo import *
+
+__all__ = ['ADRCConfig', 'ADRC']
 
 
 # ADRC控制器参数
@@ -218,17 +221,15 @@ class ADRC(BaseController):
         
         # 显示图像
         pl.show()
-            
 
 
-
-__all__ = ['ADRCConfig', 'ADRC']
 
 
 
 
 'debug'
 if __name__ == '__main__':
- 
+    with_noise = True
     cfg = ADRCConfig()
-    StepDemo(ADRC, cfg)
+    StepDemo(ADRC, cfg, with_noise)
+    CosDemo(ADRC, cfg, with_noise)

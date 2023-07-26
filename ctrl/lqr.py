@@ -17,7 +17,11 @@ if __name__ == '__main__':
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
     
-from ctrl.common import BaseController, SignalLike, StepDemo
+from ctrl.common import BaseController, SignalLike
+from ctrl.demo import *
+
+__all__ = ['LQRConfig', 'LQR']
+
 
 EyeLike = Union[int, float]
 """类似单位矩阵的矩阵简单表示\n
