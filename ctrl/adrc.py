@@ -166,7 +166,7 @@ class ADRC(BaseController):
         d = r * h**2  # array(dim,)
         a0 = h * x2   # array(dim,)
         y = x1 + a0   # array(dim,)
-        a1 = sqrt(d * (d + 8*abs(y)))  # array(dim,)
+        a1 = sqrt(d * (d + 8*abs(y)) + 1e-8)  # array(dim,)
         a2 = a0 + sign(y) * (a1 - d) / 2  # array(dim,)
         a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))  # array(dim,)
         fh = -r * (a/d) * fsg(y, d) - r * sign(a) * (1 - fsg(a, d))  # array(dim,)

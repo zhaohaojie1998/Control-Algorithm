@@ -69,7 +69,7 @@ class PID(BaseController):
         self.Kp = pl.array(cfg.Kp).flatten() # Kp array(dim,) or array(1,)
         self.Ki = pl.array(cfg.Ki).flatten() # Ki array(dim,) or array(1,)
         self.Kd = pl.array(cfg.Kd).flatten() # Kd array(dim,) or array(1,)
-        self.Kaw = pl.array(cfg.Kaw).flatten() / self.Kd # Kaw取 0.1~0.3 Kd
+        self.Kaw = pl.array(cfg.Kaw).flatten() / (self.Kd + 1e-8) # Kaw取 0.1~0.3 Kd
         
         # 抗积分饱和PID（需要遍历的数据设置为一维数组，且维度保持和dim一致）
         self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
