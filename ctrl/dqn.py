@@ -5,8 +5,8 @@ Created on Sun Jul 24 15:43:28 2022
 @author: HJ
 """
 
-''' PID '''
-# model free controller
+''' DQN '''
+# model based controller
 
 import pylab as pl
 from copy import deepcopy
@@ -17,15 +17,15 @@ if __name__ == '__main__':
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
     
-from ctrl.common import BaseController, SignalLike
+from ctrl.common import BaseDRLController, SignalLike
 from ctrl.demo import *
 
-__all__ = ['PIDConfig', 'PID', 'IncrementPID']
+__all__ = ['DQNConfig', 'DQN']
 
 
-# PID控制器参数
+# DQN控制器参数
 @dataclass
-class PIDConfig:
+class DQNConfig:
     """PID控制算法参数
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
@@ -55,13 +55,13 @@ class PIDConfig:
 
 
 
-# 位置式PID控制算法
-class PID(BaseController):
-    """位置式PID控制算法"""
+# DQN控制算法
+class DQN(BaseDRLController):
+    """DQN强化学习控制算法"""
 
-    def __init__(self, cfg: PIDConfig):
+    def __init__(self, cfg: DQNConfig):
         super().__init__()
-        self.name = 'PID'      # 算法名称
+        self.name = 'DQN'      # 算法名称
         self.dt = cfg.dt       # 控制器步长
         self.dim = cfg.dim     # 反馈信号y和跟踪信号v的维度
         
@@ -69,7 +69,7 @@ class PID(BaseController):
         self.Kp = pl.array(cfg.Kp).flatten() # Kp array(dim,) or array(1,)
         self.Ki = pl.array(cfg.Ki).flatten() # Ki array(dim,) or array(1,)
         self.Kd = pl.array(cfg.Kd).flatten() # Kd array(dim,) or array(1,)
-        self.Kaw = pl.array(cfg.Kaw).flatten() / (self.Kd + 1e-8) # Kaw取 0.1~0.3 Kd
+        self.Kaw = pl.array(cfg.Kaw).flatten() / self.Kd # Kaw取 0.1~0.3 Kd
         
         # 抗积分饱和PID（需要遍历的数据设置为一维数组，且维度保持和dim一致）
         self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
@@ -93,7 +93,7 @@ class PID(BaseController):
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
     def __call__(self, v, y) -> pl.ndarray:
         # 计算PID误差
-        error = (pl.array(v) - y).flatten()              # P偏差 array(dim,)
+        error = pl.array(v - y).flatten()              # P偏差 array(dim,)
         differential = error - self.error_last         # D偏差 array(dim,)
         
         # 抗积分饱和算法
@@ -176,57 +176,8 @@ class PID(BaseController):
         
         
         
-        
-# 增量式PID控制算法
-class IncrementPID(PID):
-    """增量式PID控制算法"""
-
-    def __init__(self, cfg: PIDConfig):
-        super().__init__(cfg)
-        self.name = 'IncrementPID'             # 算法名称
-        self.error_last2 = pl.zeros(self.dim)  # e(k-2)
-        self.error_sum = pl.zeros(self.dim)    # 这里integration是积分增量,error_sum是积分
-        
-    def __call__(self, v, y):
-        # 计算PID误差
-        error = (pl.array(v) - y).flatten()              # P偏差 array(dim,)
-        differential = error - self.error_last         # D偏差 array(dim,)
-        
-        # 抗积分饱和算法
-        self.integration = pl.zeros(self.dim)             # 积分增量 integration = error - 反馈信号
-        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
-        
-        # 控制量
-        u0 = self.Kp * (error - self.error_last) + beta * self.Ki * self.integration \
-             + self.Kd * (error - 2*self.error_last + self.error_last2)
-        self.u = u0 + self.u # 增量式PID对u进行clip后有超调
-        
-        self.error_last2 = deepcopy(self.error_last)
-        self.error_last = deepcopy(error)
-        self.error_sum += self.integration         # 积分绘图用
-        
-        # 存储绘图数据
-        self.logger.t.append(self.t)
-        self.logger.u.append(self.u)
-        self.logger.y.append(y)
-        self.logger.v.append(v)
-        self.logger.e.append(error)
-        self.logger.d.append(differential)
-        self.logger.i.append(self.error_sum)
-        
-        self.t += self.dt
-        return self.u
-
-
-
-
-
-
 
 
 'debug'
 if __name__ == '__main__':
-    with_noise = True
-    cfg = PIDConfig()
-    StepDemo(PID, cfg, with_noise)
-    CosDemo(PID, cfg, with_noise)
+    pass

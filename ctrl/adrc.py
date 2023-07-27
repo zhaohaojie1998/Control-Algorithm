@@ -110,6 +110,8 @@ class ADRC(BaseController):
     
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
     def __call__(self, v, y):
+        v = pl.array(v)
+        y = pl.array(y)
         # TD
         self._TD(v)
         # ESO

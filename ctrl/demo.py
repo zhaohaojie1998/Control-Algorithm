@@ -9,7 +9,7 @@
 
 ''' 跟踪控制测试用例 '''
 import numpy as np
-from ctrl.common import BaseDRLController
+from ctrl.common import BaseDRLController, BaseSearchController
 from ctrl.utils import TicToc
 
 
@@ -78,7 +78,10 @@ def StepDemo(algo, cfg, with_noise=True):
             # 获取参考轨迹
             v = v_list[i]
             # 控制信号产生
-            u = ctrl(v, y)
+            if not isinstance(ctrl, BaseSearchController):
+                u = ctrl(v, y)
+            else:
+                u = ctrl(v, plant)
             # 更新观测
             y = plant(u)
         #end
@@ -109,7 +112,10 @@ def CosDemo(algo, cfg, with_noise=True):
             # 获取参考轨迹
             v = v_list[i]
             # 控制信号产生
-            u = ctrl(v, y)
+            if not isinstance(ctrl, BaseSearchController):
+                u = ctrl(v, y)
+            else:
+                u = ctrl(v, plant)
             # 更新观测
             y = plant(u)
         #end

@@ -184,6 +184,53 @@ class BaseController(ABC):
 
 
 
+
+
+# Search控制器
+class BaseSearchController(BaseController):
+    """启发搜索控制器"""
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'DRL Controller'
+
+    @abstractmethod
+    def __call__(self, v: SignalLike, plant: Callable[[pl.ndarray], SignalLike]) -> pl.ndarray:
+        """控制器输入输出接口
+
+        Ctrller
+        ------
+        控制y信号跟踪v信号, 输出控制量u\n
+
+                ——————————          ——————————         \n
+         v ---> | search | -- u --> |  plant | ---> y  \n
+                ——————————          ——————————         \n
+                   ↑                    |              \n
+                   --------- y ----------              \n
+
+        Params
+        ------
+        v : SignalLike (标量或向量)
+            控制器输入信号, 即理想信号
+        plant : u -> y (输入u, 输出y)
+            被控对象, 输入u, 输出观测y
+
+        Return
+        ------
+        u : ndarray (向量)
+            输出控制量u, 输入为标量时输出也为向量
+        """
+        raise NotImplementedError
+
+
+
+
+
+
+
+
+
+
 # DRL控制器
 class BaseDRLController(BaseController):
     """强化学习控制器"""

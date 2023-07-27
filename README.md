@@ -8,7 +8,7 @@
 | 增量式PID控制<br />Increment PID Control             | IncrementPID | 无模型 | 自带抗积分饱和+积分分离功能                                       |
 | 自抗扰控制<br />Active Disturbance Rejection Control | ADRC         | 无模型 | 缺点：参数巨多。。。                                              |
 | 线性二次型调节器<br />Linear Quadratic Regulator     | LQR          | 有模型 | 支持线性时变系统<br />缺点：强依赖模型，且必须已知v的全部轨迹信息 |
-| 智能/启发搜索算法控制<br />AI Search Control         | GWO          | 有模型 | 模型只用来评估搜索结果的好坏                                      |
+| 智能/启发搜索算法控制<br />AI Search Control         |              | 有模型 | 模型只用来评估搜索结果的好坏                                      |
 | 深度强化学习控制<br />DRL Control                    | SAC/DQN      | 有模型 | 模型只用来产生训练数据                                            |
 
 PID跟踪控制yyds，可以考虑AI给PID或ADRC调参，LQR调节器（v=0）用来搞跟踪控制（v!=0）太难了。。。。
