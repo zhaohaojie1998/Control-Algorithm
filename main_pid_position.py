@@ -63,6 +63,7 @@ class FixedWingModel:
         self.t += self.dt
         self.u = u
         self.s = np.array([x, y, z, V, θ, ψ])
+        return self.position
 
     @property
     def states(self):

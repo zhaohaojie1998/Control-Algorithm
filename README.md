@@ -65,7 +65,7 @@ pid.show() # 绘图输出
 
 ##### 1.PID控制算法：
 
-![](图片/Result.png)
+![](图片/Result0.png)
 
 ##### 2.ADRC控制算法：
 
@@ -73,7 +73,19 @@ pid.show() # 绘图输出
 
 ## 无人机轨迹跟踪控制：
 
-![](图片/Result2.png)
+![](图片/ADRC0.png)
+
+![](图片/ADRC1.png)
+
+![](图片/ADRC2.png)
+
+![](图片/ADRC3.png)
+
+![](图片/ADRC4.png)
+
+![](图片/ADRC5.png)
+
+![](图片/ADRC6.png)
 
 ## **Requirement**:
 
