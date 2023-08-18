@@ -359,9 +359,3 @@ if __name__ == '__main__':
     plt.ylabel('angle (rad)')
     plt.title('角度')              
     plt.show()                 
-
-    
-
-
-
-    
