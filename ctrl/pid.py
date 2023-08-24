@@ -9,7 +9,6 @@ Created on Sun Jul 24 15:43:28 2022
 # model free controller
 
 import pylab as pl
-from copy import deepcopy
 from dataclasses import dataclass
 
 if __name__ == '__main__':
@@ -41,12 +40,12 @@ class PIDConfig:
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)\n
     dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好\n
     """
-    dt: float = 0.001            # 控制器步长 (float)
+    dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
     Kp: SignalLike = 5           # 比例增益 (float or list)
-    Ki: SignalLike = 0.001       # 积分增益 (float or list)
-    Kd: SignalLike = 10          # 微分增益 (float or list)
+    Ki: SignalLike = 0.1         # 积分增益 (float or list)
+    Kd: SignalLike = 0.1         # 微分增益 (float or list)
     # 抗积分饱和
     u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
     u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
@@ -93,8 +92,8 @@ class PID(BaseController):
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
     def __call__(self, v, y) -> pl.ndarray:
         # 计算PID误差
-        error = (pl.array(v) - y).flatten()              # P偏差 array(dim,)
-        differential = error - self.error_last         # D偏差 array(dim,)
+        error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
+        differential = (error - self.error_last) / self.dt # D偏差 array(dim,)
         
         # 抗积分饱和算法
         beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
@@ -102,7 +101,7 @@ class PID(BaseController):
         # 控制量
         self.u = self.Kp * error + beta * self.Ki * self.integration + self.Kd * differential
         self.u = pl.clip(self.u, self.u_min, self.u_max)
-        self.error_last = deepcopy(error)
+        self.error_last[:] = error
         
         # 存储绘图数据
         self.logger.t.append(self.t)
@@ -145,8 +144,8 @@ class PID(BaseController):
         #end for
                 
         # 抗饱和算法1
-        self.integration += error if method > 1 else beta * gamma * error # 正常积分PID
-        # self.integration += error/2 if method > 1 else beta * gamma * error/2 # 梯形积分PID
+        self.integration += error * self.dt if method > 1 else beta * gamma * error * self.dt # 正常积分PID
+        # self.integration += error/2 * self.dt if method > 1 else beta * gamma * error/2 * self.dt# 梯形积分PID
         
         # 反馈抑制抗饱和算法 back-calculation
         if method > 1:
@@ -189,8 +188,8 @@ class IncrementPID(PID):
         
     def __call__(self, v, y):
         # 计算PID误差
-        error = (pl.array(v) - y).flatten()              # P偏差 array(dim,)
-        differential = error - self.error_last         # D偏差 array(dim,)
+        error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
+        differential = (error - self.error_last) / self.dt # D偏差 array(dim,)
         
         # 抗积分饱和算法
         self.integration = pl.zeros(self.dim)             # 积分增量 integration = error - 反馈信号
@@ -201,11 +200,12 @@ class IncrementPID(PID):
              + self.Kd * (error - 2*self.error_last + self.error_last2)
         self.u = u0 + self.u # 增量式PID对u进行clip后有超调
         
-        self.error_last2 = deepcopy(self.error_last)
-        self.error_last = deepcopy(error)
-        self.error_sum += self.integration         # 积分绘图用
-        
+        self.error_last2[:] = self.error_last
+        self.error_last[:] = error
+        self.t += self.dt
+
         # 存储绘图数据
+        self.error_sum += self.integration         # 积分绘图用
         self.logger.t.append(self.t)
         self.logger.u.append(self.u)
         self.logger.y.append(y)
@@ -213,8 +213,6 @@ class IncrementPID(PID):
         self.logger.e.append(error)
         self.logger.d.append(differential)
         self.logger.i.append(self.error_sum)
-        
-        self.t += self.dt
         return self.u
 
 
@@ -228,5 +226,5 @@ class IncrementPID(PID):
 if __name__ == '__main__':
     with_noise = True
     cfg = PIDConfig()
-    StepDemo(PID, cfg, with_noise)
+    StepDemo(IncrementPID, cfg, with_noise)
     CosDemo(PID, cfg, with_noise)

@@ -125,6 +125,7 @@ class ADRC(BaseController):
         u0 = self._NLSEF(e1, e2)
         # 控制量
         self.u = u0 - self.z3 / self.b0
+        self.t += self.dt
         
         # 存储绘图数据
         self.logger.t.append(self.t)
@@ -135,7 +136,6 @@ class ADRC(BaseController):
         self.logger.e1.append(self.v1 - self.z1)
         self.logger.e2.append(self.v2 - self.z2)
         self.logger.z3.append(self.z3)
-        self.t += self.dt
         return self.u
     
     # 跟踪微分器
@@ -165,12 +165,12 @@ class ADRC(BaseController):
     def _fhan(self, x1, x2, r, h):
         def fsg(x, d):
             return (sign(x + d) - sign(x - d)) / 2
-        d = r * h**2  # array(dim,)
-        a0 = h * x2   # array(dim,)
-        y = x1 + a0   # array(dim,)
-        a1 = sqrt(d * (d + 8*abs(y)) + 1e-8)  # array(dim,)
-        a2 = a0 + sign(y) * (a1 - d) / 2  # array(dim,)
-        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))  # array(dim,)
+        d = r * h**2                                                 # array(dim,)
+        a0 = h * x2                                                  # array(dim,)
+        y = x1 + a0                                                  # array(dim,)
+        a1 = sqrt(d * (d + 8*abs(y)) + 1e-8)                         # array(dim,)
+        a2 = a0 + sign(y) * (a1 - d) / 2                             # array(dim,)
+        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))              # array(dim,)
         fh = -r * (a/d) * fsg(y, d) - r * sign(a) * (1 - fsg(a, d))  # array(dim,)
         return fh
     
