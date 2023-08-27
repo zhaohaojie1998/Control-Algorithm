@@ -1,9 +1,5 @@
 #pragma once
-#include <vector>
-#include <algorithm> // for std::min and std::max
-#include <stdexcept> // ±¨´í
-using std::vector;
-using std::pair;
+#include "utils.h"
 
 //PID¿ØÖÆÆ÷
 class PIDController {
@@ -18,8 +14,8 @@ public:
         double feedforward_gain = 0.0
         );
 
-    double call(double setpoint, double feedback, double dt);
-    double operator()(double setpoint, double feedback, double dt);
+    double call(double setpoint, double feedback, double dt, double expected_output = 0.0);
+    double operator()(double setpoint, double feedback, double dt, double expected_output = 0.0);
 
     PIDController(
         const vector<double>& Kp, 
@@ -31,8 +27,8 @@ public:
         const vector<double>& feedforward_gain = {}
     );
     
-    vector<double> call(const vector<double>& setpoint, const vector<double>& feedback, double dt);
-    vector<double> operator()(const vector<double>& setpoint, const vector<double>& feedback, double dt);
+    vector<double> call(const vector<double>& setpoint, const vector<double>& feedback, double dt, const vector<double>& expected_output = {});
+    vector<double> operator()(const vector<double>& setpoint, const vector<double>& feedback, double dt, const vector<double>& expected_output = {});
 
 
 private:

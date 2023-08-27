@@ -80,8 +80,10 @@ class PID(BaseController):
         
         # 控制器初始化
         self.u = pl.zeros(self.dim)            # array(dim,)
-        self.error_last = pl.zeros(self.dim)   # array(dim,)
-        self.integration = pl.zeros(self.dim)  # array(dim,)
+        self.error = pl.zeros(self.dim)
+        self.last_error = pl.zeros(self.dim)   # array(dim,)
+        self.differential = pl.zeros(self.dim)
+        self.integral = pl.zeros(self.dim)     # array(dim,)
         self.t = 0
         
         # 存储器
@@ -90,50 +92,51 @@ class PID(BaseController):
         self.logger.i = []    # 误差积分
     
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, v, y) -> pl.ndarray:
+    def __call__(self, v, y, *, anti_windup_method=2) -> pl.ndarray:
         # 计算PID误差
-        error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
-        differential = (error - self.error_last) / self.dt # D偏差 array(dim,)
+        self.error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
+        self.differential = (self.error - self.last_error) / self.dt # D偏差 array(dim,)
         
         # 抗积分饱和算法
-        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
+        beta = self._anti_integral_windup(anti_windup_method) # 积分分离参数 array(dim,)
         
         # 控制量
-        self.u = self.Kp * error + beta * self.Ki * self.integration + self.Kd * differential
+        self.u = self.Kp * self.error + beta * self.Ki * self.integral + self.Kd * self.differential
         self.u = pl.clip(self.u, self.u_min, self.u_max)
-        self.error_last[:] = error
+        self.last_error[:] = self.error
         
         # 存储绘图数据
         self.logger.t.append(self.t)
         self.logger.u.append(self.u)
         self.logger.y.append(y)
         self.logger.v.append(v)
-        self.logger.e.append(error)
-        self.logger.d.append(differential)
-        self.logger.i.append(self.integration)
+        self.logger.e.append(self.error)
+        self.logger.d.append(self.differential)
+        self.logger.i.append(self.integral)
         
         self.t += self.dt
         return self.u
     
+    
     # 抗积分饱和算法 + 积分分离
-    def _anti_integral_windup(self, error, method = 2):
+    def _anti_integral_windup(self, method = 2):
         beta = pl.zeros(self.dim) # 积分分离参数
         gamma = pl.zeros(self.dim) if method < 2 else None # 方法1的抗积分饱和参数
         for i in range(self.dim):
             # 积分分离，误差超限去掉积分控制
-            beta[i] = 0 if abs(error[i]) > self.max_err[i] else 1 
+            beta[i] = 0 if abs(self.error[i]) > self.max_err[i] else 1 
             
             # 算法1
             if method < 2:
                 # 控制超上限累加负偏差，误差超限不累加
                 if self.u[i] > self.u_max[i]:
-                    if error[i] < 0:
+                    if self.error[i] < 0:
                         gamma[i] = 1 # 负偏差累加
                     else:
                         gamma[i] = 0 # 正偏差不累加
                 # 控制超下限累加正偏差，误差超限不累加
                 elif self.u[i] < self.u_max[i]:
-                    if error[i] > 0:
+                    if self.error[i] > 0:
                         gamma[i] = 1 # 正偏差累加
                     else:
                         gamma[i] = 0 # 负偏差不累加
@@ -144,13 +147,13 @@ class PID(BaseController):
         #end for
                 
         # 抗饱和算法1
-        self.integration += error * self.dt if method > 1 else beta * gamma * error * self.dt # 正常积分PID
+        self.integral += self.error * self.dt if method > 1 else beta * gamma * self.error * self.dt # 正常积分PID
         # self.integration += error/2 * self.dt if method > 1 else beta * gamma * error/2 * self.dt# 梯形积分PID
         
         # 反馈抑制抗饱和算法 back-calculation
         if method > 1:
             antiWindupError = pl.clip(self.u, self.u_min, self.u_max) - self.u
-            self.integration += self.Kaw * antiWindupError # 累计误差加上个控制偏差的反馈量
+            self.integral += self.Kaw * antiWindupError # 累计误差加上个控制偏差的反馈量
         
         return beta
             
@@ -176,6 +179,11 @@ class PID(BaseController):
         
         
         
+
+
+
+
+        
 # 增量式PID控制算法
 class IncrementPID(PID):
     """增量式PID控制算法"""
@@ -183,35 +191,35 @@ class IncrementPID(PID):
     def __init__(self, cfg: PIDConfig):
         super().__init__(cfg)
         self.name = 'IncrementPID'             # 算法名称
-        self.error_last2 = pl.zeros(self.dim)  # e(k-2)
+        self.last_last_error = pl.zeros(self.dim)  # e(k-2)
         self.error_sum = pl.zeros(self.dim)    # 这里integration是积分增量,error_sum是积分
         
     def __call__(self, v, y):
         # 计算PID误差
-        error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
-        differential = (error - self.error_last) / self.dt # D偏差 array(dim,)
+        self.error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
+        self.differential = (self.error - self.last_error) / self.dt # D偏差 array(dim,)
         
         # 抗积分饱和算法
-        self.integration = pl.zeros(self.dim)             # 积分增量 integration = error - 反馈信号
-        beta = self._anti_integral_windup(error, method=2) # 积分分离参数 array(dim,)
+        self.integral = pl.zeros(self.dim)  # 积分增量 integration = error - 反馈信号
+        beta = self._anti_integral_windup() # 积分分离参数 array(dim,)
         
         # 控制量
-        u0 = self.Kp * (error - self.error_last) + beta * self.Ki * self.integration \
-             + self.Kd * (error - 2*self.error_last + self.error_last2)
+        u0 = self.Kp * (self.error - self.last_error) + beta * self.Ki * self.integral \
+             + self.Kd * (self.error - 2*self.last_error + self.last_last_error) / self.dt
         self.u = u0 + self.u # 增量式PID对u进行clip后有超调
         
-        self.error_last2[:] = self.error_last
-        self.error_last[:] = error
+        self.last_last_error[:] = self.last_error
+        self.last_error[:] = self.error
         self.t += self.dt
 
         # 存储绘图数据
-        self.error_sum += self.integration         # 积分绘图用
+        self.error_sum += self.integral # 积分绘图用
         self.logger.t.append(self.t)
         self.logger.u.append(self.u)
         self.logger.y.append(y)
         self.logger.v.append(v)
-        self.logger.e.append(error)
-        self.logger.d.append(differential)
+        self.logger.e.append(self.error)
+        self.logger.d.append(self.differential)
         self.logger.i.append(self.error_sum)
         return self.u
 

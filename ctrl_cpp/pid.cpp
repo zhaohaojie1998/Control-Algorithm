@@ -1,9 +1,5 @@
 #include "pid.h"
 
-double clip(double x, double x_min, double x_max) {
-    return std::max(std::min(x, x_max), x_min);
-}
-
 
 // 一维信号初始化
 PIDController::PIDController(
@@ -51,20 +47,24 @@ PIDController::PIDController(
 
 
 // 一维信号调用
-double PIDController::call(double setpoint, double feedback, double dt) {
+double PIDController::call(double setpoint, double feedback, double dt, double expected_output) {
     vector<double> setpoints(1, setpoint); // vector(dim, init)
     vector<double> feedbacks(1, feedback);
-    vector<double> outputs = this->call(setpoints, feedbacks, dt);
+    vector<double> expected_outputs;
+    if (expected_output != 0.0) {
+        expected_outputs.push_back(expected_output);
+    }
+    vector<double> outputs = this->call(setpoints, feedbacks, dt, expected_outputs);
     return outputs[0];
 }
 
-double PIDController::operator()(double setpoint, double feedback, double dt) {
-    return this->call(setpoint, feedback, dt);
+double PIDController::operator()(double setpoint, double feedback, double dt, double expected_output) {
+    return this->call(setpoint, feedback, dt, expected_output);
 }
 
 
 // 多维信号调用
-vector<double> PIDController::call(const vector<double>& setpoint, const vector<double>& feedback, double dt) {
+vector<double> PIDController::call(const vector<double>& setpoint, const vector<double>& feedback, double dt, const vector<double>& expected_output) {
     // 检查维度
     if (setpoint.size() != feedback.size() || setpoint.size() != __Kp.size()) {
         throw std::invalid_argument("Dimension mismatch between setpoint, feedback, and parameters.");
@@ -98,8 +98,8 @@ vector<double> PIDController::call(const vector<double>& setpoint, const vector<
         }
 
         // Feedforward control
-        if (!this->__feedforward_gain.empty() && i < this->__feedforward_gain.size()) {
-            feedforward[i] = this->__feedforward_gain[i] * error;
+        if (!this->__feedforward_gain.empty() && i < this->__feedforward_gain.size() && !expected_output.empty() && i < expected_output.size()) {
+            feedforward[i] = this->__feedforward_gain[i] * (expected_output[i] - feedback[i]); // 前馈控制 (期望输出y - 反馈信号y)
         }
 
         control[i] = proportional[i] + integral_term[i] + derivative[i] + feedforward[i];
@@ -116,7 +116,7 @@ vector<double> PIDController::call(const vector<double>& setpoint, const vector<
 
 }
 
-vector<double> PIDController::operator()(const vector<double>& setpoint, const vector<double>& feedback, double dt) {
+vector<double> PIDController::operator()(const vector<double>& setpoint, const vector<double>& feedback, double dt, const vector<double>& expected_output) {
     return this->call(setpoint, feedback, dt);
 }
 
