@@ -30,14 +30,14 @@ adrc_cfg = ADRCConfig(
     # 扩张状态观测器
     b0 = 1,                 # 被控系统系数
     delta = 0.015,          # fal(e, alpha, delta)函数线性区间宽度
-    beta01 = 150,           # ESO反馈增益1
-    beta02 = 250,           # ESO反馈增益2
-    beta03 = [350,400,500], # ESO反馈增益3
+    eso_beta01 = 150,           # ESO反馈增益1
+    eso_beta02 = 250,           # ESO反馈增益2
+    eso_beta03 = [350,400,500], # ESO反馈增益3
     # 非线性状态反馈控制率
-    alpha1 = 200/201,             # 0 < alpha1 < 1
-    alpha2 = [201/200,1.01,1.02], # alpha2 > 1 
-    beta1 = 20,                   # 跟踪输入信号增益1
-    beta2 = [10,15,20],           # 跟踪输入信号增益2
+    nlsef_alpha1 = 200/201,             # 0 < alpha1 < 1
+    nlsef_alpha2 = [201/200,1.01,1.02], # alpha2 > 1 
+    nlsef_beta1 = 20,                   # 跟踪输入信号增益1
+    nlsef_beta2 = [10,15,20],           # 跟踪输入信号增益2
 )
 
 

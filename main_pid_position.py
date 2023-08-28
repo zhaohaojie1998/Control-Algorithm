@@ -221,9 +221,9 @@ if __name__ == '__main__':
     from ctrl import PID, PIDConfig, ADRC, ADRCConfig
     cfg = PIDConfig(
         Ts, dim=3, 
-        Kp=[10,500,500], 
-        Ki=[10,1000,1000], 
-        Kd=[100000,100000,100000], 
+        Kp=[500,500,500], 
+        Ki=[0,0,0], 
+        Kd=[50,50,50], 
         u_max=[30, 30, 30],
         u_min=[-30, -30, -30],
         Kaw=0.3,

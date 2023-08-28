@@ -54,14 +54,17 @@ class ADRCConfig:
     # 扩张状态观测器
     b0: SignalLike = 133.          # 被控系统系数 (float or list)
     delta: SignalLike = 0.015      # fal(e, alpha, delta)函数线性区间宽度 (float or list)
-    beta01: SignalLike = 150.      # ESO反馈增益1 (float or list)
-    beta02: SignalLike = 250.      # ESO反馈增益2 (float or list)
-    beta03: SignalLike = 550.      # ESO反馈增益3 (float or list)
+    eso_beta01: SignalLike = 150.  # ESO反馈增益1 (float or list)
+    eso_beta02: SignalLike = 250.  # ESO反馈增益2 (float or list)
+    eso_beta03: SignalLike = 550.  # ESO反馈增益3 (float or list)
     # 非线性状态反馈控制率
-    alpha1: SignalLike = 200/201   # 0 < alpha1 < 1  (float or list)
-    alpha2: SignalLike = 201/200   # alpha2 > 1      (float or list)
-    beta1: SignalLike = 10.        # 跟踪输入信号增益 (float or list)
-    beta2: SignalLike = 0.0009     # 跟踪微分信号增益 (float or list)
+    nlsef_alpha1: SignalLike = 200/201   # 0 < alpha1 < 1  (float or list)
+    nlsef_alpha2: SignalLike = 201/200   # alpha2 > 1      (float or list)
+    nlsef_beta1: SignalLike = 10.        # 跟踪输入信号增益 (float or list)
+    nlsef_beta2: SignalLike = 0.0009     # 跟踪微分信号增益 (float or list)
+    # 控制约束
+    u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
+    u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
 
     def __post_init__(self):
         if self.h is None:
@@ -84,14 +87,19 @@ class ADRC(BaseController):
         # ESO超参
         self.b0 = pl.array(cfg.b0).flatten()         # 系统系数
         self.delta = pl.array(cfg.delta).flatten()   # fal(e, alpha, delta)函数线性区间宽度        
-        self.beta01 = pl.array(cfg.beta01).flatten() # ESO反馈增益1
-        self.beta02 = pl.array(cfg.beta02).flatten() # ESO反馈增益2
-        self.beta03 = pl.array(cfg.beta03).flatten() # ESO反馈增益3
+        self.beta01 = pl.array(cfg.eso_beta01).flatten() # ESO反馈增益1
+        self.beta02 = pl.array(cfg.eso_beta02).flatten() # ESO反馈增益2
+        self.beta03 = pl.array(cfg.eso_beta03).flatten() # ESO反馈增益3
         # NLSEF超参
-        self.alpha1 = pl.array(cfg.alpha1).flatten() # 0 < alpha1 < 1 < alpha2
-        self.alpha2 = pl.array(cfg.alpha2).flatten() # alpha2 > 1
-        self.beta1 = pl.array(cfg.beta1).flatten()   # 跟踪输入信号增益
-        self.beta2 = pl.array(cfg.beta2).flatten()   # 跟踪微分信号增益
+        self.alpha1 = pl.array(cfg.nlsef_alpha1).flatten() # 0 < alpha1 < 1 < alpha2
+        self.alpha2 = pl.array(cfg.nlsef_alpha2).flatten() # alpha2 > 1
+        self.beta1 = pl.array(cfg.nlsef_beta1).flatten()   # 跟踪输入信号增益
+        self.beta2 = pl.array(cfg.nlsef_beta2).flatten()   # 跟踪微分信号增益
+        # 控制约束
+        self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
+        self.u_max = self.u_max.repeat(self.dim) if len(self.u_max) == 1 else self.u_max # array(dim,)
+        self.u_min = pl.array(cfg.u_min).flatten() # array(1,) or array(dim,)
+        self.u_min = self.u_min.repeat(self.dim) if len(self.u_min) == 1 else self.u_min # array(dim,)
         
         # 控制器初始化
         self.v1 = pl.zeros(self.dim) # array(dim,)
@@ -125,6 +133,7 @@ class ADRC(BaseController):
         u0 = self._NLSEF(e1, e2)
         # 控制量
         self.u = u0 - self.z3 / self.b0
+        self.u = pl.clip(self.u, self.u_min, self.u_max)
         self.t += self.dt
         
         # 存储绘图数据
@@ -153,7 +162,7 @@ class ADRC(BaseController):
         self.z2 = self.z2 + self.h * (self.z3 - self.beta02 * fe + self.b0 * self.u)
         self.z3 = self.z3 + self.h * (- self.beta03 * fe1)
     
-    # 非线性状态反馈控制率
+    # 非线性状态误差反馈控制律
     def _NLSEF(self, e1, e2):
         # u0 = self.beta1 * e1 + self.beta2 * e2
         u0 = self.beta1 * self._fal(e1, self.alpha1, self.delta) + self.beta2 * self._fal(e2, self.alpha2, self.delta)

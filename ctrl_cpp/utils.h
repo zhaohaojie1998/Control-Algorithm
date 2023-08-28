@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include <algorithm> // for std::min and std::max
-#include <stdexcept> // ±¨´í
+#include <stdexcept> // for std::invalid_argument
 #include <vector>
 using std::vector;
 using std::pair;
@@ -12,6 +12,10 @@ vector<double> clip(const vector<double>& x, const vector<double>& x_min, const 
 vector<double> clip(const vector<double>& x, double x_min, const vector<double>& x_max);
 vector<double> clip(const vector<double>& x, const vector<double>& x_min, double x_max);
 vector<double> clip(const vector<double>& x, double x_min, double x_max);
+
+// ·ûºÅº¯Êý
+double sign(double x);
+int sign(int x);
 
 // ´òÓ¡¾ØÕó
 void printMatrix(const vector<vector<double>>& matrix);

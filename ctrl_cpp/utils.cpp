@@ -26,10 +26,22 @@ vector<double> clip(const vector<double>& x, double x_min, double x_max) {
     return clip(x, vector<double>(x.size(), x_min), vector<double>(x.size(), x_max));
 }
 
+// 2.sign函数
+double sign(double x) {
+    return (x > 0.0) ? 1.0 : ((x < 0.0) ? -1.0 : 0.0);
+}
+int sign(int x) {
+    return (x > 0) ? 1 : ((x < 0) ? -1 : 0);
+}
 
 
 
-// 0.打印矩阵
+
+
+
+
+
+// 1.打印矩阵
 void printMatrix(const vector<vector<double>>& matrix) {
     for (const auto& row : matrix) {
         for (const auto& element : row) {
@@ -39,8 +51,6 @@ void printMatrix(const vector<vector<double>>& matrix) {
     }
     std::cout << std::endl;
 }
-
-
 
 
 // 2.matrixTranspose函数
@@ -54,8 +64,6 @@ vector<vector<double>> matrixTranspose(const vector<vector<double>>& matrix) {
     }
     return result;
 }
-
-
 
 
 // 3.multiplyMatrix函数
@@ -90,8 +98,6 @@ vector<double> matrixMultiply(const vector<vector<double>>& matrixA, const vecto
     }
     return result;
 }
-
-
 
 
 // 4.matrixAddition函数
@@ -131,9 +137,6 @@ vector<double> matrixAddition(const vector<double>& matrixA, const vector<double
 }
 
 
-
-
-
 // 5.matrixiIdentity函数
 // 单位矩阵
 vector<vector<double>> matrixiIdentity(int n) {
@@ -143,8 +146,6 @@ vector<vector<double>> matrixiIdentity(int n) {
     }
     return result;
 }
-
-
 
 
 // 6.matrixDeterminant函数
@@ -176,8 +177,6 @@ double matrixDeterminant(const vector<vector<double>>& matrix) {
     }
     return determinant;
 }
-
-
 
 
 // 7.matrixInverse函数
@@ -216,8 +215,6 @@ vector<vector<double>> matrixInverse(const vector<vector<double>>& matrix) {
     }
     return inverse;
 }
-
-
 
 
 // 8.matrixPow函数
