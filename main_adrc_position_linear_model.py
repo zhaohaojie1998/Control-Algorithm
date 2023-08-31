@@ -34,10 +34,10 @@ adrc_cfg = ADRCConfig(
     eso_beta02 = 250,           # ESO反馈增益2
     eso_beta03 = [350,400,500], # ESO反馈增益3
     # 非线性状态反馈控制率
-    nlsef_alpha1 = 200/201,             # 0 < alpha1 < 1
-    nlsef_alpha2 = [201/200,1.01,1.02], # alpha2 > 1 
     nlsef_beta1 = 20,                   # 跟踪输入信号增益1
     nlsef_beta2 = [10,15,20],           # 跟踪输入信号增益2
+    nlsef_alpha1 = 200/201,             # 0 < alpha1 < 1
+    nlsef_alpha2 = [201/200,1.01,1.02], # alpha2 > 1 
 )
 
 

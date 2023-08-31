@@ -92,13 +92,13 @@ class PID(BaseController):
         self.logger.i = []    # 误差积分
     
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, v, y, *, anti_windup_method=2) -> pl.ndarray:
+    def __call__(self, v, y, *, anti_windup_method=1) -> pl.ndarray:
         # 计算PID误差
         self.error = (pl.array(v) - y).flatten()                # P偏差 array(dim,)
         self.differential = (self.error - self.last_error) / self.dt # D偏差 array(dim,)
         
         # 抗积分饱和算法
-        beta = self._anti_integral_windup(anti_windup_method) # 积分分离参数 array(dim,)
+        beta = self._Anti_Windup(anti_windup_method) # 积分分离参数 array(dim,)
         
         # 控制量
         self.u = self.Kp * self.error + beta * self.Ki * self.integral + self.Kd * self.differential
@@ -119,15 +119,16 @@ class PID(BaseController):
     
     
     # 抗积分饱和算法 + 积分分离
-    def _anti_integral_windup(self, method = 2):
+    def _Anti_Windup(self, method = 1):
+        method = method % 2
         beta = pl.zeros(self.dim) # 积分分离参数
-        gamma = pl.zeros(self.dim) if method < 2 else None # 方法1的抗积分饱和参数
+        gamma = pl.zeros(self.dim) if method == 0 else None # 方法1的抗积分饱和参数
         for i in range(self.dim):
             # 积分分离，误差超限去掉积分控制
             beta[i] = 0 if abs(self.error[i]) > self.max_err[i] else 1 
             
-            # 算法1
-            if method < 2:
+            # 算法0
+            if method == 0:
                 # 控制超上限累加负偏差，误差超限不累加
                 if self.u[i] > self.u_max[i]:
                     if self.error[i] < 0:
@@ -135,7 +136,7 @@ class PID(BaseController):
                     else:
                         gamma[i] = 0 # 正偏差不累加
                 # 控制超下限累加正偏差，误差超限不累加
-                elif self.u[i] < self.u_max[i]:
+                elif self.u[i] < -self.u_max[i]:
                     if self.error[i] > 0:
                         gamma[i] = 1 # 正偏差累加
                     else:
@@ -145,15 +146,13 @@ class PID(BaseController):
                 #end if
             #end if
         #end for
-                
-        # 抗饱和算法1
-        self.integral += self.error * self.dt if method > 1 else beta * gamma * self.error * self.dt # 正常积分PID
-        # self.integration += error/2 * self.dt if method > 1 else beta * gamma * error/2 * self.dt# 梯形积分PID
-        
-        # 反馈抑制抗饱和算法 back-calculation
-        if method > 1:
+        # 算法0
+        if method == 0:
+            self.integral += beta * gamma * self.error * self.dt
+        # 算法1 反馈抑制抗饱和算法 back-calculation
+        else:
             antiWindupError = pl.clip(self.u, self.u_min, self.u_max) - self.u
-            self.integral += self.Kaw * antiWindupError # 累计误差加上个控制偏差的反馈量
+            self.integral += self.error * self.dt + self.Kaw * antiWindupError # 累计误差加上个控制偏差的反馈量
         
         return beta
             
@@ -183,7 +182,7 @@ class PID(BaseController):
 
 
 
-        
+
 # 增量式PID控制算法
 class IncrementPID(PID):
     """增量式PID控制算法"""
@@ -201,7 +200,7 @@ class IncrementPID(PID):
         
         # 抗积分饱和算法
         self.integral = pl.zeros(self.dim)  # 积分增量 integration = error - 反馈信号
-        beta = self._anti_integral_windup() # 积分分离参数 array(dim,)
+        beta = self._Anti_Windup() # 积分分离参数 array(dim,)
         
         # 控制量
         u0 = self.Kp * (self.error - self.last_error) + beta * self.Ki * self.integral \

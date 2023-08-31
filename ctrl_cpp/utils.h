@@ -1,12 +1,16 @@
 #pragma once
 #include <iostream>
-#include <algorithm> // for std::min and std::max
+#include <algorithm> // for std::min, std::max
 #include <stdexcept> // for std::invalid_argument
-#include <vector>
+#include <vector> // for std::vector
+//#include <Eigen/Core> // matlab
 using std::vector;
 using std::pair;
 
-// 限制数据范围
+constexpr auto Infinity = 100000000.0;
+
+
+// 限制数据范围 <cmath>里有std::clamp
 double clip(double x, double x_min, double x_max);
 vector<double> clip(const vector<double>& x, const vector<double>& x_min, const vector<double>& x_max);
 vector<double> clip(const vector<double>& x, double x_min, const vector<double>& x_max);
@@ -32,7 +36,7 @@ vector<vector<double>> matrixAddition(const vector<vector<double>>& matrixA, con
 vector<double> matrixAddition(const vector<double>& matrixA, const vector<double>& matrixB, bool sub = false);
 
 // 单位矩阵
-vector<vector<double>> matrixiIdentity(int n);
+vector<vector<double>> matrixiIdentity(size_t n);
 
 // 方阵行列式
 double matrixDeterminant(const vector<vector<double>>& matrix);

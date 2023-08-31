@@ -36,10 +36,10 @@ class ADRCConfig:
     :param beta01: SignalLike, ESO的反馈增益1
     :param beta02: SignalLike, ESO的反馈增益2
     :param beta03: SignalLike, ESO的反馈增益3
-    :param alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1
-    :param alpha2: SignalLike, NLSEF参数, alpha2 > 1
     :param beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益
     :param beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
+    :param alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1
+    :param alpha2: SignalLike, NLSEF参数, alpha2 > 1
     :Type : SignalLike = float (标量) 或 list / ndarray (一维数组即向量)\n
     备注:\n
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)\n
@@ -58,10 +58,10 @@ class ADRCConfig:
     eso_beta02: SignalLike = 250.  # ESO反馈增益2 (float or list)
     eso_beta03: SignalLike = 550.  # ESO反馈增益3 (float or list)
     # 非线性状态反馈控制率
-    nlsef_alpha1: SignalLike = 200/201   # 0 < alpha1 < 1  (float or list)
-    nlsef_alpha2: SignalLike = 201/200   # alpha2 > 1      (float or list)
     nlsef_beta1: SignalLike = 10.        # 跟踪输入信号增益 (float or list)
     nlsef_beta2: SignalLike = 0.0009     # 跟踪微分信号增益 (float or list)
+    nlsef_alpha1: SignalLike = 200/201   # 0 < alpha1 < 1  (float or list)
+    nlsef_alpha2: SignalLike = 201/200   # alpha2 > 1      (float or list)
     # 控制约束
     u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
     u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
@@ -91,10 +91,10 @@ class ADRC(BaseController):
         self.beta02 = pl.array(cfg.eso_beta02).flatten() # ESO反馈增益2
         self.beta03 = pl.array(cfg.eso_beta03).flatten() # ESO反馈增益3
         # NLSEF超参
-        self.alpha1 = pl.array(cfg.nlsef_alpha1).flatten() # 0 < alpha1 < 1 < alpha2
-        self.alpha2 = pl.array(cfg.nlsef_alpha2).flatten() # alpha2 > 1
         self.beta1 = pl.array(cfg.nlsef_beta1).flatten()   # 跟踪输入信号增益
         self.beta2 = pl.array(cfg.nlsef_beta2).flatten()   # 跟踪微分信号增益
+        self.alpha1 = pl.array(cfg.nlsef_alpha1).flatten() # 0 < alpha1 < 1 < alpha2
+        self.alpha2 = pl.array(cfg.nlsef_alpha2).flatten() # alpha2 > 1
         # 控制约束
         self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
         self.u_max = self.u_max.repeat(self.dim) if len(self.u_max) == 1 else self.u_max # array(dim,)
