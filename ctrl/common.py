@@ -20,8 +20,13 @@ ListLike = Union[list, pl.ndarray]
 SignalLike = Union[float, list, pl.ndarray]
 """输入信号/超参, 标量或向量"""
 
+FuzzyRangeLike = Union[pl.ndarray, list[pl.ndarray]]
+"""Fuzzy信号取值范围"""
+
 NdArray = pl.ndarray
 """控制信号, 向量"""
+
+
 
 
 class Logger:
