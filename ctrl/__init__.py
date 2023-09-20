@@ -6,6 +6,7 @@
 4.LQR(暂时有问题)
 """
 from ctrl.pid import PIDConfig, PID, IncrementPID
+from ctrl.fuzzy_pid import FuzzyPIDConfig, FuzzyPID
 from ctrl.adrc import ADRCConfig, ADRC
 from ctrl.lqr import LQRConfig, LQR
 
@@ -16,6 +17,9 @@ __all__ = [
     'PIDConfig',
     'PID',
     'IncrementPID',
+
+    'FuzzyPIDConfig',
+    'FuzzyPID',
 
     'ADRCConfig',
     'ADRC',

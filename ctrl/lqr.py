@@ -204,6 +204,10 @@ class LQR(BaseController):
         self.logger.J = []    # 性能指标
         self.logger.e = []    # 跟踪误差
         self.logger.pe = []   # 黎卡提求解误差
+
+    @staticmethod
+    def getConfig():
+        return LQRConfig
     
     # LQR控制器（v为参考轨迹, y为实际轨迹或其观测值）
     def __call__(

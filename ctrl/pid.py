@@ -33,7 +33,7 @@ class PIDConfig:
     :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
     :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
     :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    :param max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+    :param ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
     :param Kd: SignalLike, 前馈控制增益系数, 默认0
     :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
     备注:\n
@@ -50,7 +50,7 @@ class PIDConfig:
     u_max: SignalLike = float('inf')   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
     u_min: SignalLike = float('-inf')  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
     Kaw: SignalLike = 0.2              # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
-    max_err: SignalLike = float('inf') # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器 (float or list)
+    ins_max_err: SignalLike = float('inf') # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器 (float or list)
     # 前馈控制
     Kf: SignalLike = 0.0         # 前馈控制增益 (float or list)
 
@@ -75,7 +75,7 @@ class PID(BaseController):
         # 抗积分饱和PID
         self.u_max = self._reshape_param(cfg.u_max, self.dim)
         self.u_min = self._reshape_param(cfg.u_min, self.dim)
-        self.max_err = self._reshape_param(cfg.max_err, self.dim)
+        self.ins_max_err = self._reshape_param(cfg.ins_max_err, self.dim) # 分离阈值
         # 控制器初始化
         self.u = np.zeros(self.dim)
         self.error = np.zeros(self.dim)      # 误差
@@ -89,6 +89,10 @@ class PID(BaseController):
         self.logger.e = []    # 误差
         self.logger.d = []    # 误差微分
         self.logger.i = []    # 误差积分
+
+    @staticmethod
+    def getConfig():
+        return PIDConfig
     
     # 计算 PID 误差
     def _update_pid_error(self, v, y):
@@ -128,7 +132,7 @@ class PID(BaseController):
         method = method % 2
         # 是否积分分离 (remove=0时分离)
         remove = np.ones(self.dim) 
-        mask = np.abs(self.error) > self.max_err # 误差超限时分离积分器
+        mask = np.abs(self.error) > self.ins_max_err # 误差超限时分离积分器
         remove[mask] = 0 
         # 算法0 - 反向累加偏差
         if method == 0:
@@ -138,7 +142,7 @@ class PID(BaseController):
             gamma[mask1] = 0
             gamma[mask2] = 0
             self.anti_error += remove * gamma * self.error * self.dt
-        # 算法1 - 反馈抑制抗饱和算法 back-calculation
+        # 算法1 - 反馈抑制抗饱和算法
         else:
             antiWindupError = np.clip(self.u, self.u_min, self.u_max) - self.u
             self.anti_error += self.error * self.dt + self.Kaw * antiWindupError # 累计误差加上个控制偏差的反馈量
@@ -217,5 +221,5 @@ class IncrementPID(PID):
 if __name__ == '__main__':
     with_noise = True
     cfg = PIDConfig()
-    StepDemo(IncrementPID, cfg, with_noise)
-    CosDemo(PID, cfg, with_noise)
+    StepDemo(PID, cfg, with_noise)
+    CosDemo(IncrementPID, cfg, with_noise)

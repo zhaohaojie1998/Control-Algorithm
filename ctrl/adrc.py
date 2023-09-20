@@ -111,10 +111,13 @@ class ADRC(BaseController):
         self.logger.e1 = []    # 误差1
         self.logger.e2 = []    # 误差2
         self.logger.z3 = []    # 干扰
-    
+
+    @staticmethod
+    def getConfig():
+        return ADRCConfig
 
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
-    def __call__(self, v, y, *, ctrl_method=1):
+    def __call__(self, v, y, *, ctrl_method=1) -> NdArray:
         v = np.array(v)
         y = np.array(y)
         # TD
@@ -163,7 +166,7 @@ class ADRC(BaseController):
     
 
     # 非线性状态误差反馈控制律
-    def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1):
+    def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1) -> NdArray:
         ctrl_method %= 4
         if ctrl_method == 0:
             u0 = self.beta1 * e1 + self.beta2 * e2
@@ -178,7 +181,7 @@ class ADRC(BaseController):
     
 
     @staticmethod
-    def _fhan(x1: NdArray, x2: NdArray, r: NdArray, h: NdArray):
+    def _fhan(x1: NdArray, x2: NdArray, r: NdArray, h: NdArray) -> NdArray:
         def fsg(x, d):
             return (np.sign(x + d) - np.sign(x - d)) / 2
         d = r * h**2
@@ -191,7 +194,7 @@ class ADRC(BaseController):
         return fh
     
     @staticmethod
-    def _fal(err: NdArray, alpha: Union[NdArray, float], delta: NdArray):
+    def _fal(err: NdArray, alpha: Union[NdArray, float], delta: NdArray) -> NdArray:
         if not isinstance(alpha, NdArray):
             alpha = np.ones_like(err) * alpha
         fa = np.zeros_like(err)

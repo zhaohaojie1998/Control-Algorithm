@@ -7,8 +7,8 @@ Created on Mon Jun 20 19:19:37 2022
 
 ''' 无人机轨迹跟踪控制 demo '''
 from ctrl import utils
-from ctrl import ADRC, ADRCConfig
-from ctrl import PID, IncrementPID, PIDConfig
+from ctrl import ADRC
+from ctrl import PID, IncrementPID
 from math import inf
 import numpy as np
 
@@ -22,6 +22,7 @@ WITH_NOISE = True # 飞行器是否受到扰动, 设置成False得重新调参
 
 
 # ADRC调参
+ADRCConfig = ADRC.getConfig()
 adrc_cfg = ADRCConfig(
     dt = 0.001,
     dim = 3,
@@ -42,6 +43,7 @@ adrc_cfg = ADRCConfig(
 
 
 # PID调参
+PIDConfig = PID.getConfig()
 pid_cfg = PIDConfig(
     dt = 0.001,
     dim = 3,

@@ -52,9 +52,15 @@ class BaseController(ABC):
     def __str__(self):
         return self.name +' Controller'
     
+    
+    @staticmethod
+    def getConfig():
+        """获取控制器的Config配置数据类"""
+        pass
+
 
     @staticmethod
-    def _reshape_param(param: Union[float, list[float], NdArray], dim: int):
+    def _reshape_param(param: Union[float, list[float], NdArray], dim: int) -> NdArray:
         """float | array_like -> ndarray (dim, )"""
         param = pl.array(param).flatten() # (dim0, ) or (1, )
         if len(param) != dim:
@@ -111,7 +117,6 @@ class BaseController(ABC):
         pl.mpl.rcParams['lines.markersize'] = 6                  # 标记点大小(默认6)
         # pl.mpl.rcParams['agg.path.chunksize'] = 10000          # 解决绘图数据溢出报错
         pl.close('all')                                          # 关闭所有窗口
-        
         # 响应曲线
         self._figure(fig_name='Response Curve', t=self.logger.t,
                      y1=self.logger.y, y1_label='Real Signal',
@@ -121,7 +126,6 @@ class BaseController(ABC):
         self._figure(fig_name='Control Law', t=self.logger.t,
                      y1=self.logger.u, y1_label='Control Signal',
                      xlabel='time', ylabel='control signal', save=save)
-        
         # 3D数据轨迹跟踪
         self._figure3D(save=save)
 
