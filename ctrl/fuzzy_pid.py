@@ -25,7 +25,7 @@ __all__ = ['FuzzyPIDConfig', 'FuzzyPID']
 # FuzzyPID控制器参数
 @dataclass
 class FuzzyPIDConfig:
-    """PID控制算法参数
+    """FuzzyPID控制算法参数
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
@@ -34,7 +34,7 @@ class FuzzyPIDConfig:
     :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
     :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
     :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    :param anti_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+    :param ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
     :param max_Kp_add: SignalLike, Kp浮动范围, >0
     :param max_Ki_add: SignalLike, Ki浮动范围, >0
     :param max_Kd_add: SignalLike, Kd浮动范围, >0
