@@ -7,17 +7,16 @@ Created on Sat Jun 18 15:27:34 2022
 
 ''' ADRC '''
 # model free controller
-
-import pylab as pl
-from pylab import sign, sqrt
+from typing import Union
 from dataclasses import dataclass
+import numpy as np
 
 if __name__ == '__main__':
     import sys, os
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
 
-from ctrl.common import BaseController, SignalLike, ListLike
+from ctrl.common import BaseController, SignalLike, ListLike, NdArray
 from ctrl.demo import *
 
 __all__ = ['ADRCConfig', 'ADRC']
@@ -63,8 +62,8 @@ class ADRCConfig:
     nlsef_alpha1: SignalLike = 200/201   # 0 < alpha1 < 1  (float or list)
     nlsef_alpha2: SignalLike = 201/200   # alpha2 > 1      (float or list)
     # 控制约束
-    u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
-    u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
+    u_max: SignalLike = float('inf')   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
+    u_min: SignalLike = float('-inf')  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
 
     def __post_init__(self):
         if self.h is None:
@@ -82,32 +81,29 @@ class ADRC(BaseController):
         self.dt = cfg.dt         # 仿真步长
         self.dim = cfg.dim       # 反馈信号y和跟踪信号v的维度
         # TD超参
-        self.r = pl.array(cfg.r).flatten()           # 快速跟踪因子
-        self.h = pl.array(cfg.h).flatten()           # 滤波因子，系统调用步长
+        self.r = self._reshape_param(cfg.r, self.dim) # 快速跟踪因子
+        self.h = self._reshape_param(cfg.h, self.dim) # 滤波因子，系统调用步长
         # ESO超参
-        self.b0 = pl.array(cfg.b0).flatten()         # 系统系数
-        self.delta = pl.array(cfg.delta).flatten()   # fal(e, alpha, delta)函数线性区间宽度        
-        self.beta01 = pl.array(cfg.eso_beta01).flatten() # ESO反馈增益1
-        self.beta02 = pl.array(cfg.eso_beta02).flatten() # ESO反馈增益2
-        self.beta03 = pl.array(cfg.eso_beta03).flatten() # ESO反馈增益3
+        self.b0 = self._reshape_param(cfg.b0, self.dim)             # 系统系数
+        self.delta = self._reshape_param(cfg.delta, self.dim)       # fal(e, alpha, delta)函数线性区间宽度        
+        self.beta01 = self._reshape_param(cfg.eso_beta01, self.dim) # ESO反馈增益1
+        self.beta02 = self._reshape_param(cfg.eso_beta02, self.dim) # ESO反馈增益2
+        self.beta03 = self._reshape_param(cfg.eso_beta03, self.dim) # ESO反馈增益3
         # NLSEF超参
-        self.beta1 = pl.array(cfg.nlsef_beta1).flatten()   # 跟踪输入信号增益
-        self.beta2 = pl.array(cfg.nlsef_beta2).flatten()   # 跟踪微分信号增益
-        self.alpha1 = pl.array(cfg.nlsef_alpha1).flatten() # 0 < alpha1 < 1 < alpha2
-        self.alpha2 = pl.array(cfg.nlsef_alpha2).flatten() # alpha2 > 1
+        self.beta1 = self._reshape_param(cfg.nlsef_beta1, self.dim)   # 跟踪输入信号增益
+        self.beta2 = self._reshape_param(cfg.nlsef_beta2, self.dim)   # 跟踪微分信号增益
+        self.alpha1 = self._reshape_param(cfg.nlsef_alpha1, self.dim) # 0 < alpha1 < 1 < alpha2
+        self.alpha2 = self._reshape_param(cfg.nlsef_alpha2, self.dim) # alpha2 > 1
         # 控制约束
-        self.u_max = pl.array(cfg.u_max).flatten() # array(1,) or array(dim,)
-        self.u_max = self.u_max.repeat(self.dim) if len(self.u_max) == 1 else self.u_max # array(dim,)
-        self.u_min = pl.array(cfg.u_min).flatten() # array(1,) or array(dim,)
-        self.u_min = self.u_min.repeat(self.dim) if len(self.u_min) == 1 else self.u_min # array(dim,)
-        
+        self.u_max = self._reshape_param(cfg.u_max, self.dim)
+        self.u_min = self._reshape_param(cfg.u_min, self.dim)
         # 控制器初始化
-        self.v1 = pl.zeros(self.dim) # array(dim,)
-        self.v2 = pl.zeros(self.dim) # array(dim,)
-        self.z1 = pl.zeros(self.dim) # array(dim,)
-        self.z2 = pl.zeros(self.dim) # array(dim,)
-        self.z3 = pl.zeros(self.dim) # array(dim,)
-        self.u = pl.zeros(self.dim) # array(dim,)
+        self.v1 = np.zeros(self.dim)
+        self.v2 = np.zeros(self.dim)
+        self.z1 = np.zeros(self.dim)
+        self.z2 = np.zeros(self.dim)
+        self.z3 = np.zeros(self.dim)
+        self.u = np.zeros(self.dim)
         self.t = 0
         
         # 存储器
@@ -116,24 +112,25 @@ class ADRC(BaseController):
         self.logger.e2 = []    # 误差2
         self.logger.z3 = []    # 干扰
     
+
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
-    def __call__(self, v, y):
-        v = pl.array(v)
-        y = pl.array(y)
+    def __call__(self, v, y, *, ctrl_method=1):
+        v = np.array(v)
+        y = np.array(y)
         # TD
         self._TD(v)
         # ESO
         self._ESO(y)
-        self.z1 = pl.nan_to_num(self.z1)
-        self.z2 = pl.nan_to_num(self.z2)
-        self.z3 = pl.nan_to_num(self.z3)
+        self.z1 = np.nan_to_num(self.z1)
+        self.z2 = np.nan_to_num(self.z2)
+        self.z3 = np.nan_to_num(self.z3)
         # NLSEF
         e1 = self.v1 - self.z1
         e2 = self.v2 - self.z2
-        u0 = self._NLSEF(e1, e2)
+        u0 = self._NLSEF(e1, e2, ctrl_method)
         # 控制量
         self.u = u0 - self.z3 / self.b0
-        self.u = pl.clip(self.u, self.u_min, self.u_max)
+        self.u = np.clip(self.u, self.u_min, self.u_max)
         self.t += self.dt
         
         # 存储绘图数据
@@ -147,14 +144,16 @@ class ADRC(BaseController):
         self.logger.z3.append(self.z3)
         return self.u
     
+
     # 跟踪微分器
-    def _TD(self, v):
+    def _TD(self, v: NdArray):
         fh = self._fhan(self.v1 - v, self.v2, self.r, self.h)
         self.v1 = self.v1 + self.h * self.v2
         self.v2 = self.v2 + self.h * fh
     
+
     # 扩张状态观测器
-    def _ESO(self, y):
+    def _ESO(self, y: NdArray):
         e = self.z1 - y
         fe = self._fal(e, 1/2, self.delta)
         fe1 = self._fal(e, 1/4, self.delta)
@@ -162,66 +161,67 @@ class ADRC(BaseController):
         self.z2 = self.z2 + self.h * (self.z3 - self.beta02 * fe + self.b0 * self.u)
         self.z3 = self.z3 + self.h * (- self.beta03 * fe1)
     
+
     # 非线性状态误差反馈控制律
-    def _NLSEF(self, e1, e2):
-        # u0 = self.beta1 * e1 + self.beta2 * e2
-        u0 = self.beta1 * self._fal(e1, self.alpha1, self.delta) + self.beta2 * self._fal(e2, self.alpha2, self.delta)
-        # u0 = -self.fhan(e1, e2, self.r, self.h)
-        # c = 1.5
-        # u0 = -self.fhan(e1, c*e2, self.r, self.h)
+    def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1):
+        ctrl_method %= 4
+        if ctrl_method == 0:
+            u0 = self.beta1 * e1 + self.beta2 * e2
+        elif ctrl_method == 1:
+            u0 = self.beta1 * self._fal(e1, self.alpha1, self.delta) + self.beta2 * self._fal(e2, self.alpha2, self.delta)
+        elif ctrl_method == 2:
+            u0 = -self.fhan(e1, e2, self.r, self.h)
+        else:
+            c = 1.5
+            u0 = -self.fhan(e1, c*e2, self.r, self.h)
         return u0 # (dim, )
     
-    def _fhan(self, x1, x2, r, h):
+
+    @staticmethod
+    def _fhan(x1: NdArray, x2: NdArray, r: NdArray, h: NdArray):
         def fsg(x, d):
-            return (sign(x + d) - sign(x - d)) / 2
-        d = r * h**2                                                 # array(dim,)
-        a0 = h * x2                                                  # array(dim,)
-        y = x1 + a0                                                  # array(dim,)
-        a1 = sqrt(d * (d + 8*abs(y)) + 1e-8)                         # array(dim,)
-        a2 = a0 + sign(y) * (a1 - d) / 2                             # array(dim,)
-        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))              # array(dim,)
-        fh = -r * (a/d) * fsg(y, d) - r * sign(a) * (1 - fsg(a, d))  # array(dim,)
+            return (np.sign(x + d) - np.sign(x - d)) / 2
+        d = r * h**2
+        a0 = h * x2
+        y = x1 + a0
+        a1 = np.sqrt(d * (d + 8*abs(y)) + 1e-8)
+        a2 = a0 + np.sign(y) * (a1 - d) / 2
+        a = (a0 + y) * fsg(y, d) + a2 * (1 - fsg(y, d))
+        fh = -r * (a/d) * fsg(y, d) - r * np.sign(a) * (1 - fsg(a, d))
         return fh
     
-    def _fal(self, e, alpha, delta):
-        ##  alpha和delta维度可以为1，也可以为dim    ##
-        ##  数据类型可以为 int float list array   ##
-        alpha = pl.array(alpha).flatten() # array(m,) m = 1 or m = dim
-        delta = pl.array(delta).flatten() # array(m,) m = 1 or m = dim
-        alpha = alpha.repeat(self.dim) if len(alpha) == 1 else alpha # array(dim,)
-        delta = delta.repeat(self.dim) if len(delta) == 1 else delta # array(dim,)
-        
-        fa = pl.zeros(self.dim) # array(dim,)
-        for i in range(self.dim):
-            if abs(e[i]) <= delta[i]:
-                fa[i] = e[i] / delta[i]**(alpha[i]-1)
-            else:
-                fa[i] = abs(e[i])**alpha[i] * sign(e[i])
+    @staticmethod
+    def _fal(err: NdArray, alpha: Union[NdArray, float], delta: NdArray):
+        if not isinstance(alpha, NdArray):
+            alpha = np.ones_like(err) * alpha
+        fa = np.zeros_like(err)
+        mask = np.abs(err) <= delta
+        fa[mask] = err[mask] / delta[mask]**(alpha[mask] - 1)
+        fa[~mask] = np.abs(err[~mask])**alpha[~mask] * np.sign(err[~mask])
         return fa
     
-    def show(self, *, save: bool = False, interference: ListLike = None):
+
+    # 输出
+    def show(self, interference: ListLike = None, *, save=False, show_img=True):
         """控制器控制效果绘图输出
-        :param save: bool, 是否存储绘图
         :param interference: ListLike, 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
+        :param save: bool, 是否存储绘图
+        :param show_img: bool, 是否CMD输出图像
         """
         # 响应曲线 与 控制曲线
         super().show(save=save)
-        
         # TD曲线
         self._figure(fig_name='Tracking Differentiator (TD)', t=self.logger.t,
                      y1=self.logger.v1, y1_label='td',
                      y2=self.logger.v, y2_label='input',
                      xlabel='time', ylabel='response signal', save=save)
-        
         # 误差曲线
         self._figure(fig_name='Error Curve', t=self.logger.t,
                      y1=self.logger.e1, y1_label='error',
                      xlabel='time', ylabel='error signal', save=save)
-        
         self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
                      y1=self.logger.e2, y1_label='differential estimation of error',
                      xlabel='time', ylabel='error differential signal', save=save)
-        
         # 干扰估计曲线
         if interference is not None:
             interference = interference if len(interference) == len(self.logger.t) else None
@@ -229,9 +229,9 @@ class ADRC(BaseController):
                      y1=self.logger.z3, y1_label='interference estimation',
                      y2=interference, y2_label='real interference',
                      xlabel='time', ylabel='interference signal', save=save)
-        
         # 显示图像
-        pl.show()
+        if show_img:
+            self._show_img()
 
 
 

@@ -8,7 +8,7 @@ Created on Sun Jul 24 15:43:28 2022
 ''' Fuzzy PID '''
 # model free controller
 
-import pylab as pl
+import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as f_ctrl
 from dataclasses import dataclass
@@ -53,9 +53,9 @@ class FuzzyPIDConfig:
     Ki: SignalLike = 0.0         # 积分增益 (float or list)
     Kd: SignalLike = 0.1         # 微分增益 (float or list)
     # 抗积分饱和
-    u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
-    u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
-    Kaw: SignalLike = 0.2        # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
+    u_max: SignalLike = float('inf')   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
+    u_min: SignalLike = float('-inf')  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
+    Kaw: SignalLike = 0.2              # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
     # Fuzzy控制
     max_Kp_add: SignalLike = 0.5  # 模糊Kp调节阈值, (float or list)
     max_Ki_add: SignalLike = 0.5  # 模糊Kp调节阈值, (float or list)
@@ -76,33 +76,22 @@ class FuzzyPID(PID):
 
     def __init__(self, cfg: FuzzyPIDConfig):
         super().__init__(cfg)
-        self.name = 'FuzzyPID' # 算法名称
-        # Fuzzy参数
-        self.Kp_init = deepcopy(self.Kp)
-        self.Ki_init = deepcopy(self.Ki)
-        self.Kd_init = deepcopy(self.Kd)
+        self.name = 'FuzzyPID'
         # 模糊输入
-        max_err = pl.array(cfg.max_err).flatten()
-        max_err_sum = pl.array(cfg.max_err_sum).flatten()
-        max_err_diff = pl.array(cfg.max_err_diff).flatten()
+        max_err = self._reshape_param(cfg.max_err, self.dim)
+        max_err_sum = self._reshape_param(cfg.max_err_sum, self.dim)
+        max_err_diff = self._reshape_param(cfg.max_err_diff, self.dim)
         # 模糊输出
-        max_Kp_add = pl.array(cfg.max_Kp_add).flatten()
-        max_Ki_add = pl.array(cfg.max_Ki_add).flatten()
-        max_Kd_add = pl.array(cfg.max_Kd_add).flatten()
+        max_Kp_add = self._reshape_param(cfg.max_Kp_add, self.dim)
+        max_Ki_add = self._reshape_param(cfg.max_Ki_add, self.dim)
+        max_Kd_add = self._reshape_param(cfg.max_Kd_add, self.dim)
+        # 超参范围
+        self.Kp_max, self.Kp_min = self.Kp + max_Kp_add, self.Kp - max_Kp_add
+        self.Ki_max, self.Ki_min = self.Ki + max_Ki_add, self.Ki - max_Ki_add
+        self.Kd_max, self.Kd_min = self.Kd + max_Kd_add, self.Kd - max_Kd_add
         # Fuzzy仿真系统
-        self.fuzzy_sim = []
-        p = lambda x, i: x[i] if i < len(x) else x[-1] 
-        for i in range(self.dim):
-            self.fuzzy_sim.append(
-                self._fuzzy_init(
-                    p(max_Kp_add, i),
-                    p(max_Ki_add, i),
-                    p(max_Kd_add, i),
-                    p(max_err, i),
-                    p(max_err_sum, i),
-                    p(max_err_diff, i)
-                )
-            )
+        self.fuzzy_sim = [self._fuzzy_init(*params) for params in zip(max_Kp_add, max_Ki_add, max_Kd_add, max_err, max_err_sum, max_err_diff)]
+        
         # 存储器
         self.logger.kp = []
         self.logger.ki = []
@@ -113,13 +102,13 @@ class FuzzyPID(PID):
     def _fuzzy_init(self, max_Kp_add=0.5, max_Ki_add=0.5, max_Kd_add=0.5, max_err=10.0, max_err_sum=10.0, max_err_diff=10.0, num=10):
         """ 设置模糊规则(1个dim) """
         # fuzzy input
-        f_error = f_ctrl.Antecedent(pl.linspace(-max_err, max_err, num), 'error')
-        f_error_sum = f_ctrl.Antecedent(pl.linspace(-max_err_sum, max_err_sum, num), 'error_sum')
-        f_error_diff = f_ctrl.Antecedent(pl.linspace(-max_err_diff, max_err_diff, num), 'error_diff')
+        f_error = f_ctrl.Antecedent(np.linspace(-max_err, max_err, num), 'error')
+        f_error_sum = f_ctrl.Antecedent(np.linspace(-max_err_sum, max_err_sum, num), 'error_sum')
+        f_error_diff = f_ctrl.Antecedent(np.linspace(-max_err_diff, max_err_diff, num), 'error_diff')
         # fuzzy output
-        f_Kp_add = f_ctrl.Consequent(pl.linspace(-max_Kp_add, max_Kp_add, num), 'Kp_add')
-        f_Ki_add = f_ctrl.Consequent(pl.linspace(-max_Ki_add, max_Ki_add, num), 'Ki_add')
-        f_Kd_add = f_ctrl.Consequent(pl.linspace(-max_Kd_add, max_Kd_add, num), 'Kd_add')
+        f_Kp_add = f_ctrl.Consequent(np.linspace(-max_Kp_add, max_Kp_add, num), 'Kp_add')
+        f_Ki_add = f_ctrl.Consequent(np.linspace(-max_Ki_add, max_Ki_add, num), 'Ki_add')
+        f_Kd_add = f_ctrl.Consequent(np.linspace(-max_Kd_add, max_Kd_add, num), 'Kd_add')
         # 设置隶属度函数
         f_error.automf(3)
         f_error_sum.automf(3)
@@ -154,7 +143,7 @@ class FuzzyPID(PID):
     # 模糊 PID 控制
     def _update_gain(self, v, y):
         """更新PID增益"""
-        self.error = (pl.array(v) - y).flatten()                   # P偏差
+        self.error = (np.array(v) - y).flatten()                   # P偏差
         self.error_diff = (self.error - self.last_error) / self.dt # D偏差
         self.error_sum += self.error * self.dt                     # I偏差
 
@@ -163,13 +152,17 @@ class FuzzyPID(PID):
             self.fuzzy_sim[i].input['error_sum'] = self.error_sum[i]
             self.fuzzy_sim[i].input['error_diff'] = self.error_diff[i]
             self.fuzzy_sim[i].compute()
-            self.Kp[i] = self.Kp_init[i] + self.fuzzy_sim[i].output['Kp_add']
-            self.Ki[i] = self.Ki_init[i] + self.fuzzy_sim[i].output['Ki_add']
-            self.Kd[i] = self.Kd_init[i] + self.fuzzy_sim[i].output['Kd_add']
+            self.Kp[i] += self.fuzzy_sim[i].output['Kp_add']
+            self.Ki[i] += self.fuzzy_sim[i].output['Ki_add']
+            self.Kd[i] += self.fuzzy_sim[i].output['Kd_add']
+
+        self.Kp = np.clip(self.Kp, self.Kp_min, self.Kp_max)
+        self.Ki = np.clip(self.Ki, self.Ki_min, self.Ki_max)
+        self.Kd = np.clip(self.Kd, self.Kd_min, self.Kd_max)
 
 
     # 模糊PID控制器
-    def __call__(self, v, y, y_expected = None, *, anti_windup_method=1) -> pl.ndarray:
+    def __call__(self, v, y, y_expected = None, *, anti_windup_method=1):
         self._update_gain(v, y)
         self.logger.kp.append(self.Kp)
         self.logger.ki.append(self.Ki)
@@ -178,8 +171,8 @@ class FuzzyPID(PID):
     
 
     # 绘图输出
-    def show(self, *, save = False):
-        super().show(save=save)
+    def show(self, *, save=False, show_img=True):
+        super().show(save=save, show_img=False)
         self._figure(fig_name='Proportional Gain', t=self.logger.t,
                      y1=self.logger.kp, y1_label='Kp',
                      xlabel='time', ylabel='gain', save=save)
@@ -189,7 +182,8 @@ class FuzzyPID(PID):
         self._figure(fig_name='Integral Gain', t=self.logger.t,
                      y1=self.logger.ki, y1_label='Ki',
                      xlabel='time', ylabel='gain', save=save)
-        pl.show()
+        if show_img:
+            self._show_img()
         
         
         
@@ -204,4 +198,4 @@ if __name__ == '__main__':
     with_noise = True
     cfg = FuzzyPIDConfig()
     StepDemo(FuzzyPID, cfg, with_noise)
-    CosDemo(FuzzyPID, cfg, with_noise)
+    #CosDemo(FuzzyPID, cfg, with_noise)

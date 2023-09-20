@@ -51,7 +51,17 @@ class BaseController(ABC):
 
     def __str__(self):
         return self.name +' Controller'
-        
+    
+
+    @staticmethod
+    def _reshape_param(param: Union[float, list[float], NdArray], dim: int):
+        """float | array_like -> ndarray (dim, )"""
+        param = pl.array(param).flatten() # (dim0, ) or (1, )
+        if len(param) != dim:
+            assert len(param) == 1, "param为float或dim维的ArrayLike"
+            return param.repeat(dim) # (dim, )
+        return param
+
 
     @abstractmethod
     def __call__(self, v: SignalLike, y: SignalLike) -> pl.ndarray:
@@ -82,9 +92,10 @@ class BaseController(ABC):
         raise NotImplementedError
     
     
-    def show(self, *, save=False):
+    def show(self, *, save=False, show_img=False):
         """控制器控制效果绘图输出
         :param save: bool, 是否存储绘图
+        :param show_img: bool, 是否CMD输出图像
         """
         # 绘图配置
         pl.mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei'] # 修复字体bug
@@ -111,10 +122,18 @@ class BaseController(ABC):
                      y1=self.logger.u, y1_label='Control Signal',
                      xlabel='time', ylabel='control signal', save=save)
         
-        # # 3D数据轨迹跟踪
+        # 3D数据轨迹跟踪
         self._figure3D(save=save)
+
+        if show_img:
+            pl.show()
+
+
+    @staticmethod
+    def _show_img():
+        pl.show()
         
-    
+
     # 绘制时间-信号曲线
     def _figure(
             self, 
