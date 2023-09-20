@@ -19,8 +19,7 @@ if __name__ == '__main__':
     ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
     sys.path.append(ctrl_dir)
     
-from ctrl.common import SignalLike, FuzzyRangeLike
-from ctrl.pid import PID
+from ctrl.pid import PID, SignalLike
 from ctrl.demo import *
 
 __all__ = ['PIDConfig', 'FuzzyPID']
@@ -38,16 +37,14 @@ class FuzzyPIDConfig:
     :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
     :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
     :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    :param max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+    :param max_Kp_add: SignalLike, Kp浮动范围, >0
+    :param max_Ki_add: SignalLike, Ki浮动范围, >0
+    :param max_Kd_add: SignalLike, Kd浮动范围, >0
+    :param max_err: SignalLike, 积分器分离阈值, 模糊系统error输入范围, >0, 取inf时不分离积分器
+    :param max_err_sum: SignalLike, 模糊系统error_sum输入范围, >0
+    :param max_err_diff: SignalLike, 模糊系统error_diff输入范围, >0
     :param Kf: SignalLike, 前馈控制增益系数, 默认0
-    :param Kp_add_range: FuzzyRangeLike, Kp浮动范围
-    :param Ki_add_range: FuzzyRangeLike, Ki浮动范围
-    :param Kd_add_range: FuzzyRangeLike, Kd浮动范围
-    :param error_range: FuzzyRangeLike, 模糊系统error输入范围
-    :param error_sum_range: FuzzyRangeLike, 模糊系统error_sum输入范围
-    :param error_diff_range: FuzzyRangeLike, 模糊系统error_diff输入范围
     :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
-          : FuzzyRangeLike = ndarray | list[ndarray]
     """
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
@@ -59,32 +56,16 @@ class FuzzyPIDConfig:
     u_max: SignalLike = pl.inf   # 控制律上限, 范围: (u_min, inf], 取inf时不设限 (float or list)
     u_min: SignalLike = -pl.inf  # 控制律下限, 范围: [-inf, u_max), 取-inf时不设限 (float or list)
     Kaw: SignalLike = 0.2        # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和 (float or list)
-    max_err: SignalLike = pl.inf # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器 (float or list)
-    # 前馈控制
-    Kf: SignalLike = 0.0         # 前馈控制增益 (float or list)
     # Fuzzy控制
-    Kp_add_range: FuzzyRangeLike = pl.linspace(-0.5, 0.5, num = 5)
-    Ki_add_range: FuzzyRangeLike = pl.linspace(-0.5, 0.5, num = 5)
-    Kd_add_range: FuzzyRangeLike = pl.linspace(-0.5, 0.5, num = 5)
-    error_range: FuzzyRangeLike = pl.linspace(-10, 10, num = 5)
-    error_sum_range: FuzzyRangeLike = pl.linspace(-10, 10, num = 5)
-    error_diff_range: FuzzyRangeLike = pl.linspace(-10, 10, num = 5)
-
-    def __post_init__(self):
-        self.Kp_add_range = self.__init_range(self.Kp_add_range, self.dim)
-        self.Ki_add_range = self.__init_range(self.Ki_add_range, self.dim)
-        self.Kd_add_range = self.__init_range(self.Kd_add_range, self.dim)
-        self.error_range = self.__init_range(self.error_range, self.dim)
-        self.error_sum_range = self.__init_range(self.error_sum_range, self.dim)
-        self.error_diff_range = self.__init_range(self.error_diff_range, self.dim)
-    @staticmethod
-    def __init_range(x, dim):
-        if isinstance(x, pl.ndarray):
-            return [x] * dim
-        else:
-            if len(x) < dim:
-                return x + x[-1] * (dim - len(x))
-        return x
+    max_Kp_add: SignalLike = 0.5  # 模糊Kp调节阈值, (float or list)
+    max_Ki_add: SignalLike = 0.5  # 模糊Kp调节阈值, (float or list)
+    max_Kd_add: SignalLike = 0.5  # 模糊Kp调节阈值, (float or list)
+    max_err: SignalLike = 10      # 模糊误差输入阈值, 积分器分离阈值, (float or list)
+    max_err_sum: SignalLike = 10  # 模糊误差积分输入阈值, (float or list)
+    max_err_diff: SignalLike = 10 # 模糊误差微分输入阈值, (float or list)
+    # 前馈控制
+    Kf: SignalLike = 0.0          # 前馈控制增益 (float or list)
+    
 
 
 
@@ -96,19 +77,32 @@ class FuzzyPID(PID):
     def __init__(self, cfg: FuzzyPIDConfig):
         super().__init__(cfg)
         self.name = 'FuzzyPID' # 算法名称
-        
-        # Fuzzy控制律
+        # Fuzzy参数
         self.Kp_init = deepcopy(self.Kp)
         self.Ki_init = deepcopy(self.Ki)
         self.Kd_init = deepcopy(self.Kd)
-
-        # Fuzzy规则
-        self.fuzzy_sim = [
-            self._fuzzy_init(a, b, c, d, e, f) 
-            for a, b, c, d, e, f in 
-            zip(cfg.Kp_add_range, cfg.Ki_add_range, cfg.Kd_add_range, cfg.error_range, cfg.error_sum_range, cfg.error_diff_range)
-            ]
-
+        # 模糊输入
+        max_err = pl.array(cfg.max_err).flatten()
+        max_err_sum = pl.array(cfg.max_err_sum).flatten()
+        max_err_diff = pl.array(cfg.max_err_diff).flatten()
+        # 模糊输出
+        max_Kp_add = pl.array(cfg.max_Kp_add).flatten()
+        max_Ki_add = pl.array(cfg.max_Ki_add).flatten()
+        max_Kd_add = pl.array(cfg.max_Kd_add).flatten()
+        # Fuzzy仿真系统
+        self.fuzzy_sim = []
+        p = lambda x, i: x[i] if i < len(x) else x[-1] 
+        for i in range(self.dim):
+            self.fuzzy_sim.append(
+                self._fuzzy_init(
+                    p(max_Kp_add, i),
+                    p(max_Ki_add, i),
+                    p(max_Kd_add, i),
+                    p(max_err, i),
+                    p(max_err_sum, i),
+                    p(max_err_diff, i)
+                )
+            )
         # 存储器
         self.logger.kp = []
         self.logger.ki = []
@@ -116,18 +110,16 @@ class FuzzyPID(PID):
 
 
     # 设置模糊规则
-    def _fuzzy_init(self, Kp_add_range, Ki_add_range, Kd_add_range, error_range, error_sum_range, error_diff_range):
+    def _fuzzy_init(self, max_Kp_add=0.5, max_Ki_add=0.5, max_Kd_add=0.5, max_err=10.0, max_err_sum=10.0, max_err_diff=10.0, num=10):
         """ 设置模糊规则(1个dim) """
         # fuzzy input
-        f_error = f_ctrl.Antecedent(error_range, 'error')
-        f_error_sum = f_ctrl.Antecedent(error_sum_range, 'error_sum')
-        f_error_diff = f_ctrl.Antecedent(error_diff_range, 'error_diff')
-
+        f_error = f_ctrl.Antecedent(pl.linspace(-max_err, max_err, num), 'error')
+        f_error_sum = f_ctrl.Antecedent(pl.linspace(-max_err_sum, max_err_sum, num), 'error_sum')
+        f_error_diff = f_ctrl.Antecedent(pl.linspace(-max_err_diff, max_err_diff, num), 'error_diff')
         # fuzzy output
-        f_Kp_add = f_ctrl.Consequent(Kp_add_range, 'Kp_add')
-        f_Ki_add = f_ctrl.Consequent(Ki_add_range, 'Ki_add')
-        f_Kd_add = f_ctrl.Consequent(Kd_add_range, 'Kd_add')
-
+        f_Kp_add = f_ctrl.Consequent(pl.linspace(-max_Kp_add, max_Kp_add, num), 'Kp_add')
+        f_Ki_add = f_ctrl.Consequent(pl.linspace(-max_Ki_add, max_Ki_add, num), 'Ki_add')
+        f_Kd_add = f_ctrl.Consequent(pl.linspace(-max_Kd_add, max_Kd_add, num), 'Kd_add')
         # 设置隶属度函数
         f_error.automf(3)
         f_error_sum.automf(3)
@@ -135,7 +127,6 @@ class FuzzyPID(PID):
         f_Kp_add.automf(3)
         f_Ki_add.automf(3)
         f_Kd_add.automf(3)
-
         # 设置模糊规则 # bug: 暂时有问题
         rules = [
             f_ctrl.Rule(f_error['poor'], f_Kp_add['poor']),
@@ -148,13 +139,10 @@ class FuzzyPID(PID):
             f_ctrl.Rule(f_error_diff['average'], f_Kd_add['average']),
             f_ctrl.Rule(f_error_diff['good'], f_Kd_add['good'])
         ]
-
         # 设置模糊推理系统
         fuzzy_sys = f_ctrl.ControlSystem(rules)
         fuzzy_sim = f_ctrl.ControlSystemSimulation(fuzzy_sys)
-
         return fuzzy_sim
-
 
 
     # 计算 PID 误差

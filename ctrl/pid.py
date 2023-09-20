@@ -81,7 +81,7 @@ class PID(BaseController):
         self.u_min = pl.array(cfg.u_min).flatten() # array(1,) or array(dim,)
         self.u_min = self.u_min.repeat(self.dim) if len(self.u_min) == 1 else self.u_min # array(dim,)
         self.max_err = pl.array(cfg.max_err).flatten() # array(1,) or array(dim,)
-        self.max_err = self.max_err.repeat(self.dim) if len(self.max_err) == 1 else self.u_min # array(dim,)
+        self.max_err = self.max_err.repeat(self.dim) if len(self.max_err) == 1 else self.max_err # array(dim,)
         
         # 控制器初始化
         self.u = pl.zeros(self.dim)          # array(dim,)
