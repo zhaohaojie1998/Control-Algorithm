@@ -89,7 +89,7 @@ class FuzzyPID(PID):
         self.Ki_max, self.Ki_min = self.Ki + max_Ki_add, self.Ki - max_Ki_add
         self.Kd_max, self.Kd_min = self.Kd + max_Kd_add, self.Kd - max_Kd_add
         # Fuzzy仿真系统
-        self.fuzzy_sim = [self._fuzzy_init(*params) for params in zip(max_Kp_add, max_Ki_add, max_Kd_add, self.max_err, self.max_err_sum, self.max_err_diff)]
+        self.fuzzy_sim = [self._make_fuzzy_sim(*params) for params in zip(max_Kp_add, max_Ki_add, max_Kd_add, self.max_err, self.max_err_sum, self.max_err_diff)]
         
         # 存储器
         self.logger.kp = []
@@ -102,8 +102,9 @@ class FuzzyPID(PID):
 
 
     # 设置模糊规则
-    def _fuzzy_init(self, max_Kp_add=0.5, max_Ki_add=0.5, max_Kd_add=0.5, max_err=10.0, max_err_sum=10.0, max_err_diff=10.0, num=10):
-        """ 设置模糊规则(1个dim) """
+    @staticmethod
+    def _make_fuzzy_sim(max_Kp_add=1.0, max_Ki_add=0.5, max_Kd_add=0.5, max_err=0.5, max_err_sum=0.1, max_err_diff=5.0, num=10):
+        """ 生成模糊控制系统(1个dim) """
         # fuzzy input
         f_error = f_ctrl.Antecedent(np.linspace(-max_err, max_err, num), 'error')
         f_error_sum = f_ctrl.Antecedent(np.linspace(-max_err_sum, max_err_sum, num), 'error_sum')
@@ -154,7 +155,6 @@ class FuzzyPID(PID):
             self.Kp[i] += np.nan_to_num(self.fuzzy_sim[i].output['Kp_add'])
             self.Ki[i] += np.nan_to_num(self.fuzzy_sim[i].output['Ki_add'])
             self.Kd[i] += np.nan_to_num(self.fuzzy_sim[i].output['Kd_add'])
-
         self.Kp = np.clip(self.Kp, self.Kp_min, self.Kp_max)
         self.Ki = np.clip(self.Ki, self.Ki_min, self.Ki_max)
         self.Kd = np.clip(self.Kd, self.Kd_min, self.Kd_max)
