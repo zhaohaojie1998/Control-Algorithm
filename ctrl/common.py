@@ -195,6 +195,7 @@ class BaseController(ABC):
         ax = fig.add_subplot(projection='3d') # 创建3D绘图
         ax.grid()                             # 生成网格
         ax.axis('auto')
+        ax.set_aspect('equal')
         ax.plot(x1,y1,z1,'r',label='Ideal Trajectory')
         ax.plot(x2,y2,z2,'b',label='Real Trajectory')
         ax.set_xlabel('x')                    # x轴标签

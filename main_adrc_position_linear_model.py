@@ -55,7 +55,7 @@ pid_cfg = PIDConfig(
     u_max = 200,           # 控制律上限
     u_min = -200,          # 控制律下限
     Kaw = 0.2,             # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    max_err = [inf,inf,1], # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+    ins_max_err = [inf,inf,1], # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
 )
 
 
