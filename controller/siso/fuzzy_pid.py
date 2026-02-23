@@ -82,7 +82,6 @@ class FuzzyPID(PID):
             raise ImportError("skfuzzy is not installed, can not use FuzzyPID. Please run `pip install scikit-fuzzy` first.")
         
         super().__init__(cfg)
-        self.name = cfg.name # 控制器名称
         # 模糊输入
         self.max_err = self._reshape_param(cfg.max_err, self.dim)
         self.max_err_sum = self._reshape_param(cfg.max_err_sum, self.dim)

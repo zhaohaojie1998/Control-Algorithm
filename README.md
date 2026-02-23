@@ -30,9 +30,10 @@ v表示参考轨迹，y表示实际轨迹（被控对象输出），x表示状�
 
 | 算法名                                          | 类名 | 输入 | 输出 | 备注                                                   |
 | ----------------------------------------------- | ---- | ---- | ---- | ------------------------------------------------------ |
-| SAC-Auto算法控制<br />Soft Actor Critic Control | SAC  | v、y | u    | 连续控制                                               |
-| DQN算法控制<br />Deep Q Network Control        | DQN  | v、y | u    | 离散控制，需将控制量进行编码                           |
-| QMIX算法控制<br />QMIX Control                 | QMIX | v、y | u    | 多维离散控制，将每个维度的控制量看成一个强化学习智能体 |
+| SAC算法控制<br />Soft Actor Critic     | SAC  | v、y | u    | 连续控制                                               |
+| PPO算法控制<br />Proximal Policy Optimization | PPO  | v、y | u    | 连续控制                                               |
+| DQN算法控制<br />Deep Q Network       | DQN  | v、y | u    | 离散控制，需将控制量进行编码                           |
+| QMIX算法控制<br />QMIX Control        | QMIX | v、y | u    | 多维离散控制，将每个维度的控制量看成一个强化学习智能体 |
 
 ##### 2.3基于搜索（未实现）
 

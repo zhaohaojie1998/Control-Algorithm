@@ -174,7 +174,6 @@ class IncrementPID(PID):
 
     def __init__(self, cfg: PIDConfig):
         super().__init__(cfg)
-        self.name = 'IncrementPID'                # 算法名称
         self.last_last_error = np.zeros(self.dim) # e(k-2)
         
     def __call__(self, v, y, *, anti_windup_method=0):
