@@ -22,7 +22,7 @@ v表示参考轨迹，y表示实际轨迹（被控对象输出），x表示状�
 | -------------------------------------------------------------- | ---- | -------- | ---- | ----------------------------------------------------------------------- |
 | 模型预测控制<br />Model Predictive Control                     | MPC  | v_seq、x | u    | 支持非线性系统<br />缺点：计算慢，且需要知道未来n步的v                  |
 | 线性二次型调节器<br />Linear Quadratic Regulator               | LQR  | v_all、y | u    | 支持线性时变系统<br />缺点：线性，要求能控能观，必须已知v的全部轨迹信息 |
-| 迭代线性二次型调节器<br />Iterative Linear Quadratic Regulator | ILQR |          |      |                                                                         |
+| 迭代线性二次型调节器<br />Iterative Linear Quadratic Regulator | iLQR |          |      |                                                                         |
 
 ##### 2.2基于学习（未实现）
 
@@ -82,11 +82,12 @@ u为形状为(dim_u, )的向量（一维ndarray），无论v、y是否为标量�
 
 ```python
 import numpy as np
-from ctrl import PID
+from controller.siso import PIDConfig, PID
 # 设置控制器
 dim = 2 # 信号维度
-cfg = PID.getConfig()(dt=0.1, dim=dim, Kp=[5,6], Ki=0.1, Kd=1) # 调参
-pid = PID(cfg) # 实例化控制器
+cfg = PIDConfig(dt=0.1, dim=dim, Kp=[5,6], Ki=0.1, Kd=1) # 调参
+pid = cfg.build() # 实例化控制器
+# or: pid = PID(cfg)
 # 生成输入信号
 t_list = np.arange(0.0, 10.0, dt=cfg.dt)
 v_list = np.ones((len(t_list), dim)) # 需要跟踪的信号 v: (dim, )
@@ -99,7 +100,7 @@ y = np.zeros(2) # 被控信号初值 (dim, )
 for v in v_list:
     u = pid(v, y) # 调用控制器
     y = PlantModel(y, u) # 更新被控信号
-pid.show() # 绘图输出
+pid.show(save_img=True) # 绘图输出
 ```
 
 ## 四、一维信号跟踪效果图:
@@ -120,7 +121,11 @@ pid.show() # 绘图输出
 
 ![img](图片/Fuzzy.png)
 
-## 五、三维信号跟踪控制：
+## 五、二维信号跟踪控制 (小车轨迹跟踪控制):
+
+![](图片/PID0.png)
+
+## 六、三维信号跟踪控制：
 
 ![](图片/ADRC0.png)
 
@@ -135,19 +140,3 @@ pid.show() # 绘图输出
 ![](图片/ADRC5.png)
 
 ![](图片/ADRC6.png)
-
-## **六、Requirement**:
-
-python >= 3.9
-
-numpy >= 1.22.3
-
-matplotlib >= 3.5.1
-
-scipy >= 1.7.3
-
-scikit-fuzzy >= 0.4.2
-
-可选：
-
-pytorch >= 1.10.2

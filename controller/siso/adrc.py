@@ -2,7 +2,7 @@
 """
 Created on Sat Jun 18 15:27:34 2022
 
-@author: HJ
+@author: https://github.com/zhaohaojie1998
 """
 
 ''' ADRC '''
@@ -11,13 +11,8 @@ from typing import Union
 from dataclasses import dataclass
 import numpy as np
 
-if __name__ == '__main__':
-    import sys, os
-    ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
-    sys.path.append(ctrl_dir)
-
-from ctrl.common import BaseController, SignalLike, ListLike, NdArray
-from ctrl.demo import *
+from ..common import BaseController
+from ..types import SignalLike, ListLike, NdArray
 
 __all__ = ['ADRCConfig', 'ADRC']
 
@@ -26,6 +21,7 @@ __all__ = ['ADRCConfig', 'ADRC']
 @dataclass
 class ADRCConfig:
     """ADRC自抗扰控制算法参数
+    :param name: str, 控制器名称, 例如position, speed等
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维
     :param h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt
@@ -44,7 +40,7 @@ class ADRCConfig:
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)\n
     dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的ADRC控制器, 控制效果可能不好\n
     """
-
+    name: str = ''                 # 控制器名称 (str)
     dt: float = 0.001              # 控制器步长 (float)
     dim: int = 1                   # 输入维度 (int)
     # 跟踪微分器
@@ -68,6 +64,10 @@ class ADRCConfig:
     def __post_init__(self):
         if self.h is None:
             self.h = self.dt
+    
+    def build(self):
+        """构建ADRC控制器"""
+        return ADRC(self)
 
 
 
@@ -77,7 +77,7 @@ class ADRC(BaseController):
 
     def __init__(self, cfg: ADRCConfig):
         super().__init__()
-        self.name = 'ADRC'       # 算法名称
+        self.name = cfg.name     # 控制器名称
         self.dt = cfg.dt         # 仿真步长
         self.dim = cfg.dim       # 反馈信号y和跟踪信号v的维度
         # TD超参
@@ -112,10 +112,6 @@ class ADRC(BaseController):
         self.logger.e2 = []    # 误差2
         self.logger.z3 = []    # 干扰
 
-    @staticmethod
-    def getConfig():
-        return ADRCConfig
-
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
     def __call__(self, v, y, *, ctrl_method=1) -> NdArray:
         v = np.array(v)
@@ -147,13 +143,11 @@ class ADRC(BaseController):
         self.logger.z3.append(self.z3)
         return self.u
     
-
     # 跟踪微分器
     def _TD(self, v: NdArray):
         fh = self._fhan(self.v1 - v, self.v2, self.r, self.h)
         self.v1 = self.v1 + self.h * self.v2
         self.v2 = self.v2 + self.h * fh
-    
 
     # 扩张状态观测器
     def _ESO(self, y: NdArray):
@@ -164,7 +158,6 @@ class ADRC(BaseController):
         self.z2 = self.z2 + self.h * (self.z3 - self.beta02 * fe + self.b0 * self.u)
         self.z3 = self.z3 + self.h * (- self.beta03 * fe1)
     
-
     # 非线性状态误差反馈控制律
     def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1) -> NdArray:
         ctrl_method %= 4
@@ -179,7 +172,6 @@ class ADRC(BaseController):
             u0 = -self.fhan(e1, c*e2, self.r, self.h)
         return u0 # (dim, )
     
-
     @staticmethod
     def _fhan(x1: NdArray, x2: NdArray, r: NdArray, h: NdArray) -> NdArray:
         def fsg(x, d):
@@ -203,47 +195,34 @@ class ADRC(BaseController):
         fa[~mask] = np.abs(err[~mask])**alpha[~mask] * np.sign(err[~mask])
         return fa
     
-
     # 输出
-    def show(self, interference: ListLike = None, *, save=False, show_img=True):
+    def show(self, interference: ListLike = None, *, save_img=False, show_img=True):
         """控制器控制效果绘图输出
         :param interference: ListLike, 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
-        :param save: bool, 是否存储绘图
+        :param save_img: bool, 是否存储绘图
         :param show_img: bool, 是否CMD输出图像
         """
         # 响应曲线 与 控制曲线
-        super().show(save=save)
+        super().show(save_img=save_img)
         # TD曲线
         self._figure(fig_name='Tracking Differentiator (TD)', t=self.logger.t,
                      y1=self.logger.v1, y1_label='td',
                      y2=self.logger.v, y2_label='input',
-                     xlabel='time', ylabel='response signal', save=save)
+                     xlabel='time', ylabel='response signal', save_img=save_img)
         # 误差曲线
         self._figure(fig_name='Error Curve', t=self.logger.t,
                      y1=self.logger.e1, y1_label='error',
-                     xlabel='time', ylabel='error signal', save=save)
+                     xlabel='time', ylabel='error signal', save_img=save_img)
         self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
                      y1=self.logger.e2, y1_label='differential estimation of error',
-                     xlabel='time', ylabel='error differential signal', save=save)
+                     xlabel='time', ylabel='error differential signal', save_img=save_img)
         # 干扰估计曲线
         if interference is not None:
             interference = interference if len(interference) == len(self.logger.t) else None
         self._figure(fig_name='Interference Estimation', t=self.logger.t,
                      y1=self.logger.z3, y1_label='interference estimation',
                      y2=interference, y2_label='real interference',
-                     xlabel='time', ylabel='interference signal', save=save)
+                     xlabel='time', ylabel='interference signal', save_img=save_img)
         # 显示图像
         if show_img:
             self._show_img()
-
-
-
-
-
-
-'debug'
-if __name__ == '__main__':
-    with_noise = True
-    cfg = ADRCConfig()
-    StepDemo(ADRC, cfg, with_noise)
-    CosDemo(ADRC, cfg, with_noise)

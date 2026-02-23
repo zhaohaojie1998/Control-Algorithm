@@ -2,21 +2,17 @@
 """
 Created on Sun Jul 24 15:43:28 2022
 
-@author: HJ
+@author: https://github.com/zhaohaojie1998
 """
 
 ''' PID '''
 # model free controller
+from typing import Literal
 from dataclasses import dataclass
 import numpy as np
 
-if __name__ == '__main__':
-    import sys, os
-    ctrl_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # ctrl包所在的目录
-    sys.path.append(ctrl_dir)
-    
-from ctrl.common import BaseController, SignalLike, NdArray
-from ctrl.demo import *
+from ..common import BaseController
+from ..types import SignalLike, NdArray
 
 __all__ = ['PIDConfig', 'PID', 'IncrementPID']
 
@@ -25,6 +21,7 @@ __all__ = ['PIDConfig', 'PID', 'IncrementPID']
 @dataclass
 class PIDConfig:
     """PID控制算法参数
+    :param name: str, 控制器名称, 例如position, speed等
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
@@ -40,6 +37,7 @@ class PIDConfig:
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)\n
     dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好\n
     """
+    name: str = ''               # 控制器名称 (str)
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
@@ -54,6 +52,12 @@ class PIDConfig:
     # 前馈控制
     Kf: SignalLike = 0.0         # 前馈控制增益 (float or list)
 
+    def build(self, pid_type: Literal["PID", "IncrementPID"] = "PID"):
+        """构建PID控制器"""
+        if pid_type == 'PID':
+            return PID(self)
+        else:
+            return IncrementPID(self)
 
 
 
@@ -63,7 +67,7 @@ class PID(BaseController):
 
     def __init__(self, cfg: PIDConfig):
         super().__init__()
-        self.name = 'PID'      # 算法名称
+        self.name = cfg.name   # 控制器名称
         self.dt = cfg.dt       # 控制器步长
         self.dim = cfg.dim     # 反馈信号y和跟踪信号v的维度
         # PID超参
@@ -89,10 +93,6 @@ class PID(BaseController):
         self.logger.e = []    # 误差
         self.logger.d = []    # 误差微分
         self.logger.i = []    # 误差积分
-
-    @staticmethod
-    def getConfig():
-        return PIDConfig
     
     # 计算 PID 误差
     def _update_pid_error(self, v, y):
@@ -100,7 +100,6 @@ class PID(BaseController):
         self.error_diff = (self.error - self.last_error) / self.dt # D偏差
         self.error_sum += self.error * self.dt                     # I偏差
 
-    
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
     def __call__(self, v, y, y_expected = None, *, anti_windup_method=1) -> NdArray:
         # PID误差
@@ -125,7 +124,6 @@ class PID(BaseController):
         self.logger.i.append(self.error_sum)
         return self.u
     
-    
     # 抗积分饱和算法 + 积分分离
     def _Anti_Windup(self, method = 1):
         """输出积分项"""
@@ -149,32 +147,24 @@ class PID(BaseController):
         # 计算积分项
         integration = remove * self.Ki * self.anti_error
         return integration
-            
     
     # 输出
-    def show(self, *, save=False, show_img=True):
+    def show(self, *, save_img=False, show_img=True):
         # 响应曲线 与 控制曲线
-        super().show(save=save)
+        super().show(save_img=save_img)
         # 误差曲线
         self._figure(fig_name='Error Curve', t=self.logger.t,
                      y1=self.logger.e, y1_label='error',
-                     xlabel='time', ylabel='error signal', save=save)
+                     xlabel='time', ylabel='error signal', save_img=save_img)
         self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
                      y1=self.logger.d, y1_label='differential of error',
-                     xlabel='time', ylabel='error differential signal', save=save)
+                     xlabel='time', ylabel='error differential signal', save_img=save_img)
         self._figure(fig_name='Integration of Error Curve', t=self.logger.t,
                      y1=self.logger.i, y1_label='integration of error',
-                     xlabel='time', ylabel='error integration signal', save=save)
+                     xlabel='time', ylabel='error integration signal', save_img=save_img)
         # 显示图像
         if show_img:
             self._show_img()
-        
-        
-        
-        
-
-
-
 
 
 
@@ -209,17 +199,3 @@ class IncrementPID(PID):
         self.logger.d.append(self.error_diff)
         self.logger.i.append(self.error_sum)
         return self.u
-
-
-
-
-
-
-
-
-'debug'
-if __name__ == '__main__':
-    with_noise = True
-    cfg = PIDConfig()
-    StepDemo(PID, cfg, with_noise)
-    CosDemo(IncrementPID, cfg, with_noise)

@@ -1,28 +1,21 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 20 19:19:37 2022
-
-@author: ZHAOHAOJIE
-"""
-
-''' 无人机轨迹跟踪控制 demo '''
-from ctrl import utils
-from ctrl import ADRC
-from ctrl import PID, IncrementPID
+"""3D轨迹跟踪demo"""
+from controller.utils import TicToc
+from controller import ADRCConfig
+from controller import PIDConfig
+from controller import FuzzyPIDConfig
 from math import inf
 import numpy as np
-
 
 
 # 选择你的唱跳rap篮球
 CTRL = 'ADRC'
 #CTRL = 'PID'
 #CTRL = 'IncrementPID'
+#CTRL = 'FuzzyPID'
 WITH_NOISE = True # 飞行器是否受到扰动, 设置成False得重新调参
 
 
 # ADRC调参
-ADRCConfig = ADRC.getConfig()
 adrc_cfg = ADRCConfig(
     dt = 0.001,
     dim = 3,
@@ -41,9 +34,7 @@ adrc_cfg = ADRCConfig(
     nlsef_alpha2 = [201/200,1.01,1.02], # alpha2 > 1 
 )
 
-
 # PID调参
-PIDConfig = PID.getConfig()
 pid_cfg = PIDConfig(
     dt = 0.001,
     dim = 3,
@@ -58,19 +49,34 @@ pid_cfg = PIDConfig(
     ins_max_err = [inf,inf,1], # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
 )
 
-
+# FuzzyPID调参
+fuzzy_pid_cfg = FuzzyPIDConfig(
+    dt = 0.001,
+    dim = 3,
+    # FuzzyPID控制器增益
+    Kp = [30,20,30],       # 比例增益
+    Ki = [0.01,0.01,100],  # 积分增益
+    Kd = [3000,2800,5000], # 微分增益
+    # 抗积分饱和
+    u_max = 200,           # 控制律上限
+    u_min = -200,          # 控制律下限
+    Kaw = 0.2,             # 抗饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
+    ins_max_err = [inf,inf,1], # 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
+)
 
 
 if CTRL == 'ADRC':
     dt = adrc_cfg.dt
-    ctrl = ADRC(adrc_cfg)
+    ctrl = adrc_cfg.build()
+elif CTRL == 'FuzzyPID':
+    dt = fuzzy_pid_cfg.dt
+    ctrl = fuzzy_pid_cfg.build()
 elif CTRL == 'PID':
     dt = pid_cfg.dt
-    ctrl = PID(pid_cfg)
+    ctrl = pid_cfg.build("PID")
 else:
     dt = pid_cfg.dt
-    ctrl = IncrementPID(pid_cfg)
-
+    ctrl = pid_cfg.build("IncrementPID")
 
 
 
@@ -134,7 +140,6 @@ class LinearModel:
 
 
 
-
 #----------------------------- ↓↓↓↓↓ 参考轨迹设置 ↓↓↓↓↓ ------------------------------#
 t_list = np.arange(0.0, 10.0, dt)
 vx_list = 10*np.cos(t_list)
@@ -144,20 +149,15 @@ v_list = np.vstack((vx_list,vy_list,vz_list))
 
 
 
-
-
-
 #----------------------------- ↓↓↓↓↓ 轨迹跟踪控制仿真 ↓↓↓↓↓ ------------------------------#
 plant = LinearModel()
 print(ctrl)
-utils.tic()
-for i in range(len(t_list)):
-    t = t_list[i]
-    v = v_list[:, i]
-    # 更新控制
-    u = ctrl(v, plant.position)
-    # 更新状态
-    plant(u)
-utils.toc()
-ctrl.show()
-
+with TicToc():
+    for i in range(len(t_list)):
+        t = t_list[i]
+        v = v_list[:, i]
+        # 更新控制
+        u = ctrl(v, plant.position)
+        # 更新状态
+        plant(u)
+ctrl.show(save_img=True)

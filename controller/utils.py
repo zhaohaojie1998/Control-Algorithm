@@ -3,18 +3,26 @@
 实用工具
 Created on Mon Mar 13 2023 16:06:44
  
-@auther: HJ https://github.com/zhaohaojie1998
+@auther: https://github.com/zhaohaojie1998
 """
 #
 ''' PYTHON工具 '''
+import os
 import time
 import random
-import os, sys
 import platform
 import numpy as np
-from functools import wraps
 from datetime import datetime
+from functools import wraps
 
+__all__ = [
+    'get_str_time',
+    'tic',
+    'toc',
+    'TicToc',
+    'run_time_wraps',
+    'setup_seed',
+]
 
 
 # 获取当前时间
@@ -29,7 +37,6 @@ def get_str_time(mode=0):
     elif mode == 1:
         return datetime.now().strftime("%Y-%m-%d %H-%M-%S")            # 2023-04-21 13-30-55
     return datetime.now().strftime("%b%d_%H-%M-%S_") + platform.node() # Dec10_20-22-30_YOGA14s
-
 
 
 # matlab计时器
@@ -50,8 +57,6 @@ def toc(name='', *, CN=True, digit=6):
         print('%s历时 %f 秒。' % (name, round(time.time() - global_tic_time.pop(), digit)))
     else:
         print('%sElapsed time is %f seconds.' % (name, round(time.time() - global_tic_time.pop(), digit)))
-
-
 
 
 # 函数计时装饰器
@@ -82,9 +87,6 @@ def run_time_wraps(func=None, /, *, name='', CN=True, digit=6):
     else:
         return decorator(func) # @run_time, 返回被装饰的函数
         # func = run_time(func)
-
-
-
 
 
 # 多功能计时器
@@ -161,18 +163,18 @@ class TicToc:
             print('未设置tic' if self.CN else 'tic not set')  
             return
         elapsed = time.time() - self.__tic_time.pop()   
-        if self.CN: print(f'{self.name}历时 {round(elapsed, self.digit)} 秒。')
-        else: print(f'{self.name}Elapsed time is {round(elapsed, self.digit)} seconds.')
+        if self.CN:
+            print(f'{self.name}历时 {round(elapsed, self.digit)} 秒。')
+        else:
+            print(f'{self.name}Elapsed time is {round(elapsed, self.digit)} seconds.')
         return elapsed
-
-
-
 
 
 # 随机种子设置
 def setup_seed(seed=None):
     '''为torch, torch.cuda, numpy, random设置随机种子'''
-    if seed is None: return
+    if seed is None:
+        return
     try:
         import torch
         torch.manual_seed(seed)            # 为CPU设置随机种子
@@ -185,54 +187,3 @@ def setup_seed(seed=None):
         np.random.seed(seed)               # 为numpy设置随机种子
         random.seed(seed)                  # 为random设置随机种子
         os.environ['PYTHONHASHSEED'] = str(seed) # 禁止hash随机化
-
-
-
-
-
-# 优雅的输出工具
-class IOStream:
-    def __init__(self, file):
-        self.file = file
-
-    def __lshift__(self, other):
-        # self << other
-        self.file.write(str(other))
-        return self
-
-cout = IOStream(sys.stdout)
-'''std::cout'''
-cerr = IOStream(sys.stderr)
-'''std::cerr'''
-endl = '\n'
-'''std::endl'''
-
-
-
-
-__all__ = [
-    'get_str_time',
-    'tic',
-    'toc',
-    'TicToc',
-    'run_time_wraps',
-    'setup_seed',
-    'cout',
-    'cerr',
-    'endl',
-]
-
-
-
-
-
-if __name__ == '__main__':
-
-    with TicToc(name='测试1'):
-        cout << '你干嘛~~~ 哈哈~ 唉哟~ ' << endl
-    
-    @TicToc(name='测试2')
-    def test_func():
-        cerr << '哇, 贞德士泥鸭' << endl
-
-    test_func()
