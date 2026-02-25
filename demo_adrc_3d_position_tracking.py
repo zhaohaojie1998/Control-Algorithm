@@ -1,5 +1,5 @@
 """3D轨迹跟踪demo"""
-from controller.utils import TicToc
+from controller import tic, toc, matplotlib_context
 from controller import ADRCConfig
 from controller import PIDConfig
 from controller import FuzzyPIDConfig
@@ -152,12 +152,22 @@ v_list = np.vstack((vx_list,vy_list,vz_list))
 #----------------------------- ↓↓↓↓↓ 轨迹跟踪控制仿真 ↓↓↓↓↓ ------------------------------#
 plant = LinearModel()
 print(ctrl)
-with TicToc():
-    for i in range(len(t_list)):
-        t = t_list[i]
-        v = v_list[:, i]
-        # 更新控制
-        u = ctrl(v, plant.position)
-        # 更新状态
-        plant(u)
-ctrl.show(save_img=True)
+
+tic()
+for i in range(len(t_list)):
+    t = t_list[i]
+    v = v_list[:, i]
+    # 更新控制
+    tic()
+    u = ctrl(plant.position, v)
+    toc("控制求解")
+    # 更新状态
+    tic()
+    plant(u)
+    toc("状态更新")
+toc()
+
+with matplotlib_context():
+    print(ctrl)
+    ctrl.show(save_img=True)
+    ctrl.show_trajectory(save_img=True)

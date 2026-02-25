@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+PID控制器
 Created on Sun Jul 24 15:43:28 2022
 
 @author: https://github.com/zhaohaojie1998
@@ -11,7 +12,7 @@ from typing import Literal
 from dataclasses import dataclass
 import numpy as np
 
-from ..common import BaseController
+from ..base import BaseController
 from ..types import SignalLike, NdArray
 
 __all__ = ['PIDConfig', 'PID', 'IncrementPID']
@@ -21,7 +22,6 @@ __all__ = ['PIDConfig', 'PID', 'IncrementPID']
 @dataclass
 class PIDConfig:
     """PID控制算法参数
-    :param name: str, 控制器名称, 例如position, speed等
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
@@ -31,13 +31,12 @@ class PIDConfig:
     :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
     :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
     :param ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
-    :param Kd: SignalLike, 前馈控制增益系数, 默认0
+    :param Kf: SignalLike, 前馈控制增益系数, 默认0
     :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
     备注:\n
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)\n
     dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好\n
     """
-    name: str = ''               # 控制器名称 (str)
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
@@ -67,7 +66,6 @@ class PID(BaseController):
 
     def __init__(self, cfg: PIDConfig):
         super().__init__()
-        self.name = cfg.name   # 控制器名称
         self.dt = cfg.dt       # 控制器步长
         self.dim = cfg.dim     # 反馈信号y和跟踪信号v的维度
         # PID超参
@@ -101,7 +99,10 @@ class PID(BaseController):
         self.error_sum += self.error * self.dt                     # I偏差
 
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, v, y, y_expected = None, *, anti_windup_method=1) -> NdArray:
+    def __call__(self, y, v=None, y_expected=None, *, anti_windup_method=1) -> NdArray:
+        # 调节器没有输入
+        if v is None:
+            v = np.zeros_like(y)
         # PID误差
         self._update_pid_error(v, y)
         # 抗积分饱和算法
@@ -149,23 +150,27 @@ class PID(BaseController):
         return integration
     
     # 输出
-    def show(self, *, save_img=False, show_img=True):
+    def show(self, name='', save_img=False):
         # 响应曲线 与 控制曲线
-        super().show(save_img=save_img)
+        super().show(name=name, save_img=save_img)
         # 误差曲线
-        self._figure(fig_name='Error Curve', t=self.logger.t,
+        self._add_figure(name=name, title='Error Curve', t=self.logger.t,
                      y1=self.logger.e, y1_label='error',
                      xlabel='time', ylabel='error signal', save_img=save_img)
-        self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
+        self._add_figure(name=name, title='Differential of Error Curve', t=self.logger.t,
                      y1=self.logger.d, y1_label='differential of error',
                      xlabel='time', ylabel='error differential signal', save_img=save_img)
-        self._figure(fig_name='Integration of Error Curve', t=self.logger.t,
+        self._add_figure(name=name, title='Integration of Error Curve', t=self.logger.t,
                      y1=self.logger.i, y1_label='integration of error',
                      xlabel='time', ylabel='error integration signal', save_img=save_img)
-        # 显示图像
-        if show_img:
-            self._show_img()
 
+    def __repr__(self):
+        info = \
+f"""{self.__class__.__name__} Controller (dt={self.dt}):
+    Kp={self.Kp}, Ki={self.Ki}, Kd={self.Kd}
+    u_max={self.u_max}, u_min={self.u_min}, Kaw={self.Kaw}, ins_max_err={self.ins_max_err}
+    Kf={self.Kf}"""
+        return info
 
 
 # 增量式 PID
@@ -175,8 +180,11 @@ class IncrementPID(PID):
     def __init__(self, cfg: PIDConfig):
         super().__init__(cfg)
         self.last_last_error = np.zeros(self.dim) # e(k-2)
-        
-    def __call__(self, v, y, *, anti_windup_method=0):
+    
+    def __call__(self, y, v=None, *, anti_windup_method=0): # 没有前馈
+        # 调节器没有输入
+        if v is None:
+            v = np.zeros_like(y)
         # PID误差
         self._update_pid_error(v, y)
         # 抗积分饱和算法
@@ -198,3 +206,10 @@ class IncrementPID(PID):
         self.logger.d.append(self.error_diff)
         self.logger.i.append(self.error_sum)
         return self.u
+    
+    def __repr__(self):
+        info = \
+f"""{self.__class__.__name__} Controller (dt={self.dt}):
+    Kp={self.Kp}, Ki={self.Ki}, Kd={self.Kd}
+    u_max={self.u_max}, u_min={self.u_min}, Kaw={self.Kaw}, ins_max_err={self.ins_max_err}"""
+        return info # 没有前馈增益

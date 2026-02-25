@@ -1,6 +1,6 @@
 """Fuzzy PID 示例"""
 import numpy as np
-from controller.utils import TicToc
+from controller.utils import timer, matplotlib_context
 from controller.siso import FuzzyPID, FuzzyPIDConfig
 
 
@@ -40,7 +40,8 @@ class PlantModel:
         return self.x[0]
 
 
-# 一维阶跃信号跟踪Demo      
+# 一维阶跃信号跟踪Demo
+@timer
 def step_singnal_demo(cfg: FuzzyPIDConfig, with_noise=True):
     # 实例化控制算法
     dt = cfg.dt
@@ -53,20 +54,19 @@ def step_singnal_demo(cfg: FuzzyPIDConfig, with_noise=True):
     plant = PlantModel(dt, with_noise)
     y = plant.y
     # 仿真
-    with TicToc():
-        for i in range(len(t_list)):
-            # 获取参考轨迹
-            v = v_list[i]
-            # 控制信号产生
-            u = ctrl(v, y)
-            # 更新观测
-            y = plant(u)
-        #end
+    for i in range(len(t_list)):
+        # 获取参考轨迹
+        v = v_list[i]
+        # 控制信号产生
+        u = ctrl(y, v)
+        # 更新观测
+        y = plant(u)
     #end
-    ctrl.show()
+    ctrl.show(name="Step")
 
 
 # 一维余弦信号跟踪Demo
+@timer
 def cosine_singnal_demo(cfg: FuzzyPIDConfig, with_noise=True):
     # 实例化控制算法
     dt = cfg.dt
@@ -79,22 +79,47 @@ def cosine_singnal_demo(cfg: FuzzyPIDConfig, with_noise=True):
     plant = PlantModel(dt, with_noise)
     y = plant.y
     # 仿真
-    with TicToc():
-        for i in range(len(t_list)):
-            # 获取参考轨迹
-            v = v_list[i]
-            # 控制信号产生
-            u = ctrl(v, y)
-            # 更新观测
-            y = plant(u)
-        #end
+    for i in range(len(t_list)):
+        # 获取参考轨迹
+        v = v_list[i]
+        # 控制信号产生
+        u = ctrl(y, v)
+        # 更新观测
+        y = plant(u)
     #end
-    ctrl.show()
+    ctrl.show(name="Cosine")
+
+
+# 状态调节器Demo
+@timer
+def state_regulator_demo(cfg: FuzzyPIDConfig, with_noise=True):
+    # 实例化控制算法
+    dt = cfg.dt
+    ctrl = cfg.build()
+    print(ctrl)
+    # 初始化被控对象
+    plant = PlantModel(dt, with_noise)
+    y = plant.y
+    # 仿真
+    t_list = np.arange(0.0, 10.0, dt)
+    for i in range(len(t_list)):
+        # 控制信号产生
+        u = ctrl(y)
+        # 更新观测
+        y = plant(u)
+    #end
+    ctrl.show(name="Regulator")
+
 
 
 if __name__ == '__main__':
-    cfg = FuzzyPIDConfig(dt=0.01, name="Step")
-    step_singnal_demo(cfg, with_noise=True)
+    cfg = FuzzyPIDConfig(dt=0.01)
 
-    cfg = FuzzyPIDConfig(dt=0.01, name="Cosine")
-    cosine_singnal_demo(cfg, with_noise=True)
+    with matplotlib_context():
+        step_singnal_demo(cfg, with_noise=True)
+    
+    with matplotlib_context():
+        cosine_singnal_demo(cfg, with_noise=True)
+
+    with matplotlib_context():
+        state_regulator_demo(cfg, with_noise=True)

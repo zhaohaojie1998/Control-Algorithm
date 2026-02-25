@@ -1,4 +1,5 @@
 """2D轨迹跟踪demo - 二轮小车"""
+from controller import tic, toc, matplotlib_context
 from controller import PID, PIDConfig
 from math import inf, cos, sin, sqrt
 import numpy as np
@@ -8,7 +9,6 @@ DT = 0.01  # 步长
 
 # 位置控制
 pos_pid_cfg = PIDConfig(
-    name = "Position",
     dt = DT,  # 控制器步长
     dim = 2,  # 输入维度 (x, y)
     # PID控制器增益
@@ -24,7 +24,6 @@ pos_pid_cfg = PIDConfig(
 
 # 速度控制
 speed_pid_cfg = PIDConfig(
-    name = "Speed",
     dt = DT,  # 控制器步长
     dim = 1,  # 输入维度 (v)
     # PID控制器增益
@@ -174,6 +173,7 @@ for i, t in enumerate(t_list):
 #----------------------------- ↓↓↓↓↓ 轨迹跟踪控制仿真 ↓↓↓↓↓ ------------------------------#
 plant = TwoWheelCarModel(DT, WITH_NOISE)
 
+tic()
 for i in range(len(t_list)):
     t = t_list[i]
     # 获取当前状态
@@ -192,7 +192,7 @@ for i in range(len(t_list)):
     ref_speed = np.sqrt(ref_vx**2 + ref_vy**2)
     
     # 步骤1：使用位置PID控制器计算位置误差控制量
-    pos_control = pos_controller(ref_pos, current_pos)
+    pos_control = pos_controller(current_pos, ref_pos)
     
     # 步骤2：计算目标速度向量 (位置控制量与参考速度向量相加)
     target_vx = ref_vx + pos_control[0]
@@ -204,7 +204,7 @@ for i in range(len(t_list)):
     target_dir = np.arctan2(target_vy, target_vx)
     
     # 步骤4：使用速度PID控制器计算速度控制量
-    speed_control = speed_controller([target_speed], [current_speed])[0]
+    speed_control = speed_controller([current_speed], [target_speed])[0]
     speed_control = np.clip(speed_control, 0, 2.0)
     
     # 步骤6：计算角度误差, 归一化到 [-π, π]
@@ -225,7 +225,10 @@ for i in range(len(t_list)):
     if i % 100 == 0:
         distance_error = np.sqrt((ref_pos[0] - current_pos[0])**2 + (ref_pos[1] - current_pos[1])**2)
         print(f"Time: {t:.2f}, Position: ({current_pos[0]:.2f}, {current_pos[1]:.2f}), Error: {distance_error:.2f}, Speed: {current_speed:.2f}, Target Speed: {target_speed:.2f}")
+toc()
 
 # 显示控制器信息
-pos_controller.show(save_img=True)
-speed_controller.show(save_img=True)
+with matplotlib_context():
+    pos_controller.show(name="Position", save_img=True)
+    pos_controller.show_trajectory(name="Position", save_img=True)
+    speed_controller.show(name="Speed", save_img=True)

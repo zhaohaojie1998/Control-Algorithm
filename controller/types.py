@@ -24,5 +24,5 @@ EyeLike = Union[int, float]
 当数据为标量时, 可认为是 矩阵=标量*单位阵
 """
 
-MatLike = Union[list, np.ndarray]
+MatLike = Union[list[list[float]], np.ndarray]
 """矩阵数据类型"""

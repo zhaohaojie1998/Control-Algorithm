@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+模糊PID控制器
 Created on Sun Jul 24 15:43:28 2022
 
 @author: https://github.com/zhaohaojie1998
@@ -26,7 +27,6 @@ __all__ = ['FuzzyPIDConfig', 'FuzzyPID']
 @dataclass
 class FuzzyPIDConfig:
     """FuzzyPID控制算法参数
-    :param name: str, 控制器名称, 例如position, speed等
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
     :param Kp: SignalLike, PID比例增益系数
@@ -45,7 +45,6 @@ class FuzzyPIDConfig:
     :param Kf: SignalLike, 前馈控制增益系数, 默认0
     :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
     """
-    name: str = ''               # 控制器名称 (str)
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)
     # PID控制器增益
@@ -160,24 +159,32 @@ class FuzzyPID(PID):
         self.Kd = np.clip(self.Kd, self.Kd_min, self.Kd_max)
 
     # 模糊PID控制器
-    def __call__(self, v, y, y_expected = None, *, anti_windup_method=1):
+    def __call__(self, y, v=None, y_expected=None, *, anti_windup_method=1):
         self._update_gain()
         self.logger.kp.append(self.Kp)
         self.logger.ki.append(self.Ki)
         self.logger.kd.append(self.Kd)
-        return super().__call__(v, y, y_expected, anti_windup_method=anti_windup_method)
+        return super().__call__(y, v, y_expected, anti_windup_method=anti_windup_method)
 
     # 绘图输出
-    def show(self, *, save_img=False, show_img=True):
-        super().show(save_img=save_img, show_img=False)
-        self._figure(fig_name='Proportional Gain', t=self.logger.t,
+    def show(self, name='', save_img=False):
+        super().show(name=name, save_img=save_img)
+        self._add_figure(name=name, title='Proportional Gain', t=self.logger.t,
                      y1=self.logger.kp, y1_label='Kp',
                      xlabel='time', ylabel='gain', save_img=save_img)
-        self._figure(fig_name='Integral Gain', t=self.logger.t,
+        self._add_figure(name=name, title='Integral Gain', t=self.logger.t,
                      y1=self.logger.ki, y1_label='Ki',
                      xlabel='time', ylabel='gain', save_img=save_img)
-        self._figure(fig_name='Differential Gain', t=self.logger.t,
+        self._add_figure(name=name, title='Differential Gain', t=self.logger.t,
                      y1=self.logger.kd, y1_label='Kd',
                      xlabel='time', ylabel='gain', save_img=save_img)
-        if show_img:
-            self._show_img()
+    
+    def __repr__(self):
+        info = \
+f"""{self.__class__.__name__} Controller (dt={self.dt}):
+    Kp_min={self.Kp_min}, Kp_max={self.Kp_max}
+    Ki_min={self.Ki_min}, Ki_max={self.Ki_max}
+    Kd_min={self.Kd_min}, Kd_max={self.Kd_max}
+    u_max={self.u_max}, u_min={self.u_min}, Kaw={self.Kaw}, ins_max_err={self.ins_max_err}
+    Kf={self.Kf}"""
+        return info

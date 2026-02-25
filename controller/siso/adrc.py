@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+ADRC自抗扰控制器
 Created on Sat Jun 18 15:27:34 2022
 
 @author: https://github.com/zhaohaojie1998
@@ -11,7 +12,7 @@ from typing import Union
 from dataclasses import dataclass
 import numpy as np
 
-from ..common import BaseController
+from ..base import BaseController
 from ..types import SignalLike, ListLike, NdArray
 
 __all__ = ['ADRCConfig', 'ADRC']
@@ -21,26 +22,24 @@ __all__ = ['ADRCConfig', 'ADRC']
 @dataclass
 class ADRCConfig:
     """ADRC自抗扰控制算法参数
-    :param name: str, 控制器名称, 例如position, speed等
     :param dt: float, 控制器步长
     :param dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维
     :param h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt
     :param r: SignalLike, 跟踪微分器(TD)快速跟踪因子
     :param b0: SignalLike, 扩张状态观测器(ESO)被控系统系数
-    :param delta: SignalLike, ESO的fal(e, alpha, delta)函数线性区间宽度
-    :param beta01: SignalLike, ESO的反馈增益1
-    :param beta02: SignalLike, ESO的反馈增益2
-    :param beta03: SignalLike, ESO的反馈增益3
-    :param beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益
-    :param beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
-    :param alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1
-    :param alpha2: SignalLike, NLSEF参数, alpha2 > 1
+    :param delta: SignalLike, fal(e, alpha, delta)函数线性区间宽度
+    :param eso_beta01: SignalLike, ESO的反馈增益1
+    :param eso_beta02: SignalLike, ESO的反馈增益2
+    :param eso_beta03: SignalLike, ESO的反馈增益3
+    :param nlsef_beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益
+    :param nlsef_beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
+    :param nlsef_alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1
+    :param nlsef_alpha2: SignalLike, NLSEF参数, alpha2 > 1
     :Type : SignalLike = float (标量) 或 list / ndarray (一维数组即向量)\n
     备注:\n
     dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)\n
     dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的ADRC控制器, 控制效果可能不好\n
     """
-    name: str = ''                 # 控制器名称 (str)
     dt: float = 0.001              # 控制器步长 (float)
     dim: int = 1                   # 输入维度 (int)
     # 跟踪微分器
@@ -77,7 +76,6 @@ class ADRC(BaseController):
 
     def __init__(self, cfg: ADRCConfig):
         super().__init__()
-        self.name = cfg.name     # 控制器名称
         self.dt = cfg.dt         # 仿真步长
         self.dim = cfg.dim       # 反馈信号y和跟踪信号v的维度
         # TD超参
@@ -86,14 +84,14 @@ class ADRC(BaseController):
         # ESO超参
         self.b0 = self._reshape_param(cfg.b0, self.dim)             # 系统系数
         self.delta = self._reshape_param(cfg.delta, self.dim)       # fal(e, alpha, delta)函数线性区间宽度        
-        self.beta01 = self._reshape_param(cfg.eso_beta01, self.dim) # ESO反馈增益1
-        self.beta02 = self._reshape_param(cfg.eso_beta02, self.dim) # ESO反馈增益2
-        self.beta03 = self._reshape_param(cfg.eso_beta03, self.dim) # ESO反馈增益3
+        self.eso_beta01 = self._reshape_param(cfg.eso_beta01, self.dim) # ESO反馈增益1
+        self.eso_beta02 = self._reshape_param(cfg.eso_beta02, self.dim) # ESO反馈增益2
+        self.eso_beta03 = self._reshape_param(cfg.eso_beta03, self.dim) # ESO反馈增益3
         # NLSEF超参
-        self.beta1 = self._reshape_param(cfg.nlsef_beta1, self.dim)   # 跟踪输入信号增益
-        self.beta2 = self._reshape_param(cfg.nlsef_beta2, self.dim)   # 跟踪微分信号增益
-        self.alpha1 = self._reshape_param(cfg.nlsef_alpha1, self.dim) # 0 < alpha1 < 1 < alpha2
-        self.alpha2 = self._reshape_param(cfg.nlsef_alpha2, self.dim) # alpha2 > 1
+        self.nlsef_beta1 = self._reshape_param(cfg.nlsef_beta1, self.dim)   # 跟踪输入信号增益
+        self.nlsef_beta2 = self._reshape_param(cfg.nlsef_beta2, self.dim)   # 跟踪微分信号增益
+        self.nlsef_alpha1 = self._reshape_param(cfg.nlsef_alpha1, self.dim) # 0 < alpha1 < 1 < alpha2
+        self.nlsef_alpha2 = self._reshape_param(cfg.nlsef_alpha2, self.dim) # alpha2 > 1
         # 控制约束
         self.u_max = self._reshape_param(cfg.u_max, self.dim)
         self.u_min = self._reshape_param(cfg.u_min, self.dim)
@@ -113,9 +111,9 @@ class ADRC(BaseController):
         self.logger.z3 = []    # 干扰
 
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
-    def __call__(self, v, y, *, ctrl_method=1) -> NdArray:
-        v = np.array(v)
+    def __call__(self, y, v=None, *, ctrl_method=1) -> NdArray:
         y = np.array(y)
+        v = np.array(v) if v is not None else np.zeros_like(y)
         # TD
         self._TD(v)
         # ESO
@@ -154,17 +152,17 @@ class ADRC(BaseController):
         e = self.z1 - y
         fe = self._fal(e, 1/2, self.delta)
         fe1 = self._fal(e, 1/4, self.delta)
-        self.z1 = self.z1 + self.h * (self.z2 - self.beta01 * e)
-        self.z2 = self.z2 + self.h * (self.z3 - self.beta02 * fe + self.b0 * self.u)
-        self.z3 = self.z3 + self.h * (- self.beta03 * fe1)
+        self.z1 = self.z1 + self.h * (self.z2 - self.eso_beta01 * e)
+        self.z2 = self.z2 + self.h * (self.z3 - self.eso_beta02 * fe + self.b0 * self.u)
+        self.z3 = self.z3 + self.h * (- self.eso_beta03 * fe1)
     
     # 非线性状态误差反馈控制律
     def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1) -> NdArray:
         ctrl_method %= 4
         if ctrl_method == 0:
-            u0 = self.beta1 * e1 + self.beta2 * e2
+            u0 = self.nlsef_beta1 * e1 + self.nlsef_beta2 * e2
         elif ctrl_method == 1:
-            u0 = self.beta1 * self._fal(e1, self.alpha1, self.delta) + self.beta2 * self._fal(e2, self.alpha2, self.delta)
+            u0 = self.nlsef_beta1 * self._fal(e1, self.nlsef_alpha1, self.delta) + self.nlsef_beta2 * self._fal(e2, self.nlsef_alpha2, self.delta)
         elif ctrl_method == 2:
             u0 = -self.fhan(e1, e2, self.r, self.h)
         else:
@@ -196,33 +194,39 @@ class ADRC(BaseController):
         return fa
     
     # 输出
-    def show(self, interference: ListLike = None, *, save_img=False, show_img=True):
+    def show(self, name='', save_img=False, interference: ListLike = None):
         """控制器控制效果绘图输出
-        :param interference: ListLike, 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
+        :param name: str, 图像名称
         :param save_img: bool, 是否存储绘图
-        :param show_img: bool, 是否CMD输出图像
+        :param interference: ListLike, 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
         """
         # 响应曲线 与 控制曲线
-        super().show(save_img=save_img)
+        super().show(name=name, save_img=save_img)
         # TD曲线
-        self._figure(fig_name='Tracking Differentiator (TD)', t=self.logger.t,
+        self._add_figure(name=name, title='Tracking Differentiator (TD)', t=self.logger.t,
                      y1=self.logger.v1, y1_label='td',
                      y2=self.logger.v, y2_label='input',
                      xlabel='time', ylabel='response signal', save_img=save_img)
         # 误差曲线
-        self._figure(fig_name='Error Curve', t=self.logger.t,
+        self._add_figure(name=name, title='Error Curve', t=self.logger.t,
                      y1=self.logger.e1, y1_label='error',
                      xlabel='time', ylabel='error signal', save_img=save_img)
-        self._figure(fig_name='Differential of Error Curve', t=self.logger.t,
+        self._add_figure(name=name, title='Differential of Error Curve', t=self.logger.t,
                      y1=self.logger.e2, y1_label='differential estimation of error',
                      xlabel='time', ylabel='error differential signal', save_img=save_img)
         # 干扰估计曲线
         if interference is not None:
             interference = interference if len(interference) == len(self.logger.t) else None
-        self._figure(fig_name='Interference Estimation', t=self.logger.t,
+        self._add_figure(name=name, title='Interference Estimation', t=self.logger.t,
                      y1=self.logger.z3, y1_label='interference estimation',
                      y2=interference, y2_label='real interference',
                      xlabel='time', ylabel='interference signal', save_img=save_img)
-        # 显示图像
-        if show_img:
-            self._show_img()
+        
+    def __repr__(self):
+        info = \
+f"""{self.__class__.__name__} Controller (dt={self.dt}):
+    h={self.h}, r={self.r}, b0={self.b0}, delta={self.delta}
+    eso_beta01={self.eso_beta01}, eso_beta02={self.eso_beta02}, eso_beta03={self.eso_beta03}
+    nlsef_beta1={self.nlsef_beta1}, nlsef_beta2={self.nlsef_beta2}, nlsef_alpha1={self.nlsef_alpha1}, nlsef_alpha2={self.nlsef_alpha2}
+    u_min={self.u_min}, u_max={self.u_max}"""
+        return info
