@@ -16,7 +16,7 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .types import ListLike, SignalLike, NdArray
+from .types import ListLike, SignalLike, NdArray, ScalarLike
 
 
 class Logger:
@@ -49,7 +49,7 @@ class BaseController(ABC):
         return param
     
     @staticmethod
-    def _reshape_scalar(value: Union[float, int, list[float], NdArray], dim: int, mode: Literal['vector', 'eye']) -> NdArray:
+    def _reshape_scalar(value: Union[ScalarLike, list[ScalarLike], NdArray], dim: int, mode: Literal['vector', 'eye']) -> NdArray:
         """convert number to eye(dim, dim) or vector(dim, )"""
         value = np.asarray(value)
         # matrix case
