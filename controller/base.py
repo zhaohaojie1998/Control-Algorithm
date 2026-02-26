@@ -43,8 +43,8 @@ class BaseController(ABC):
     def _reshape_param(param: Union[float, list[float], NdArray], dim: int) -> NdArray:
         """convert param to ndarray, shape=(dim, )"""
         param = np.asarray(param).flatten() # (dim, ) or (1, )
-        if len(param) != dim:
-            assert len(param) == 1, "param为float或dim维的ArrayLike"
+        if param.size != dim:
+            assert param.size == 1, "param为float或dim维的ArrayLike"
             return np.repeat(param, dim) # (dim, )
         return param
     
@@ -114,12 +114,12 @@ class BaseController(ABC):
         """
         # 响应曲线
         self._add_figure(name=name, title='Response Curve', t=self.logger.t,
-                     y1=self.logger.y, y1_label='Real Signal',
-                     y2=self.logger.v, y2_label='Input Signal',
+                     y1=self.logger.y, y1_label='controlled',
+                     y2=self.logger.v, y2_label='reference',
                      xlabel='time', ylabel='response signal', save_img=save_img)
         # 控制曲线
         self._add_figure(name=name, title='Control Law', t=self.logger.t,
-                     y1=self.logger.u, y1_label='Control Signal',
+                     y1=self.logger.u, y1_label='control',
                      xlabel='time', ylabel='control signal', save_img=save_img)
     
     def _add_figure(
@@ -178,7 +178,7 @@ class BaseController(ABC):
         if v.size == 0 or y.size == 0: # shape = (n, )
             return
         dim = v.shape[1] if len(v.shape) > 1 else 0 # shape = (n, dim)
-        if dim not in [2, 3]:
+        if dim not in {2, 3}:
             return
         
         x_ref = v[:,0]; y_ref = v[:,1]

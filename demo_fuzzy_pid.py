@@ -113,13 +113,12 @@ def state_regulator_demo(cfg: FuzzyPIDConfig, with_noise=True):
 
 
 if __name__ == '__main__':
-    cfg = FuzzyPIDConfig(dt=0.01)
-
+    cfg = FuzzyPIDConfig(
+        dt=0.01, dim=1, Kp=5.0, Ki=0.01, Kd=0.1,      # PID初始参数
+        max_Kp_add=1, max_Ki_add=0.5, max_Kd_add=0.5, # 模糊调参范围
+        max_err=0.5, max_err_sum=0.1, max_err_diff=5, # 模糊调参触发条件
+    )
     with matplotlib_context():
         step_singnal_demo(cfg, with_noise=True)
-    
     with matplotlib_context():
         cosine_singnal_demo(cfg, with_noise=True)
-
-    with matplotlib_context():
-        state_regulator_demo(cfg, with_noise=True)

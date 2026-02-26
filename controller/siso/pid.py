@@ -22,20 +22,25 @@ __all__ = ['PIDConfig', 'PID', 'IncrementPID']
 @dataclass
 class PIDConfig:
     """PID控制算法参数
-    :param dt: float, 控制器步长
-    :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
-    :param Kp: SignalLike, PID比例增益系数
-    :param Ki: SignalLike, PID积分增益系数
-    :param Kd: SignalLike, PID微分增益系数
-    :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
-    :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
-    :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    :param ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
-    :param Kf: SignalLike, 前馈控制增益系数, 默认0
-    :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
-    备注:\n
-    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好\n
+    
+    参数列表：
+    - dt: float, 控制器步长, 默认值 0.01
+    - dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维, 默认值 1
+    - Kp: SignalLike, PID比例增益系数, 默认值 5
+    - Ki: SignalLike, PID积分增益系数, 默认值 0.0
+    - Kd: SignalLike, PID微分增益系数, 默认值 0.1
+    - u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限, 默认值 inf
+    - u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限, 默认值 -inf
+    - Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和, 默认值 0.2
+    - ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器, 默认值 inf
+    - Kf: SignalLike, 前馈控制增益系数, 默认值 0.0
+    
+    类型说明：
+    SignalLike = float (标量) | list / ndarray (一维数组即向量)
+    
+    备注：
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的PID控制器, 必须满足dim==len(SignalLike)
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的PID控制器, 控制效果可能不好
     """
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)

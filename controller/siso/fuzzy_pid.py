@@ -27,23 +27,31 @@ __all__ = ['FuzzyPIDConfig', 'FuzzyPID']
 @dataclass
 class FuzzyPIDConfig:
     """FuzzyPID控制算法参数
-    :param dt: float, 控制器步长
-    :param dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维
-    :param Kp: SignalLike, PID比例增益系数
-    :param Ki: SignalLike, PID积分增益系数
-    :param Kd: SignalLike, PID微分增益系数
-    :param u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限
-    :param u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限
-    :param Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和
-    :param ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器
-    :param max_Kp_add: SignalLike, Kp浮动范围, >0
-    :param max_Ki_add: SignalLike, Ki浮动范围, >0
-    :param max_Kd_add: SignalLike, Kd浮动范围, >0
-    :param max_err: SignalLike, 模糊系统error输入范围, >0
-    :param max_err_sum: SignalLike, 模糊系统error_sum输入范围, >0
-    :param max_err_diff: SignalLike, 模糊系统error_diff输入范围, >0
-    :param Kf: SignalLike, 前馈控制增益系数, 默认0
-    :Type : SignalLike = float (标量) | list / ndarray (一维数组即向量)\n
+    
+    参数列表：
+    - dt: float, 控制器步长, 默认值 0.01
+    - dim: int, 输入信号维度, 即控制器输入v、y的维度, PID输出u也为dim维, 默认值 1
+    - Kp: SignalLike, PID比例增益系数, 默认值 5
+    - Ki: SignalLike, PID积分增益系数, 默认值 0.0
+    - Kd: SignalLike, PID微分增益系数, 默认值 0.1
+    - u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限, 默认值 inf
+    - u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限, 默认值 -inf
+    - Kaw: SignalLike, 抗积分饱和参数, 最好取: 0.1~0.3, 取0时不抗饱和, 默认值 0.2
+    - ins_max_err: SignalLike, 积分器分离阈值, 范围: (0, inf], 取inf时不分离积分器, 默认值 inf
+    - max_Kp_add: SignalLike, Kp浮动范围, >0, 默认值 1.0
+    - max_Ki_add: SignalLike, Ki浮动范围, >0, 默认值 0.5
+    - max_Kd_add: SignalLike, Kd浮动范围, >0, 默认值 0.5
+    - max_err: SignalLike, 模糊系统error输入范围, >0, 默认值 0.5
+    - max_err_sum: SignalLike, 模糊系统error_sum输入范围, >0, 默认值 0.1
+    - max_err_diff: SignalLike, 模糊系统error_diff输入范围, >0, 默认值 5.0
+    - Kf: SignalLike, 前馈控制增益系数, 默认值 0.0
+    
+    类型说明：
+    SignalLike = float (标量) | list / ndarray (一维数组即向量)
+    
+    备注：
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的FuzzyPID控制器, 必须满足dim==len(SignalLike)
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的FuzzyPID控制器, 控制效果可能不好
     """
     dt: float = 0.01             # 控制器步长 (float)
     dim: int = 1                 # 输入维度 (int)

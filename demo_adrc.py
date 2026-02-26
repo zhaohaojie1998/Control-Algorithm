@@ -113,13 +113,24 @@ def state_regulator_demo(cfg: ADRCConfig, with_noise=True):
 
 
 if __name__ == '__main__':
-    cfg = ADRCConfig(dt=0.01)
-    
+    cfg = ADRCConfig(
+        dt = 0.001,
+        dim = 1,
+        # 跟踪微分器
+        r = 100,                # 快速跟踪因子
+        # 扩张状态观测器
+        b0 = 133,               # 被控系统系数
+        delta = 0.015,          # fal(e, alpha, delta)函数线性区间宽度
+        eso_beta01 = 150,       # ESO反馈增益1
+        eso_beta02 = 250,       # ESO反馈增益2
+        eso_beta03 = 550,       # ESO反馈增益3
+        # 非线性状态反馈控制率
+        nlsef_beta1 = 10,       # 跟踪输入信号增益1
+        nlsef_beta2 = 0.0009,   # 跟踪输入信号增益2
+        nlsef_alpha1 = 200/201, # 0 < alpha1 < 1
+        nlsef_alpha2 = 201/200, # alpha2 > 1 
+    )
     with matplotlib_context():
         step_singnal_demo(cfg, with_noise=True)
-        
     with matplotlib_context():
         cosine_singnal_demo(cfg, with_noise=True)
-
-    with matplotlib_context():
-        state_regulator_demo(cfg, with_noise=True)

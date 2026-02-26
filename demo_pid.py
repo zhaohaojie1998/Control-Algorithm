@@ -112,13 +112,8 @@ def state_regulator_demo(cfg: PIDConfig, with_noise=True):
 
 
 if __name__ == '__main__':
-    cfg = PIDConfig(dt=0.01)
-
+    cfg = PIDConfig(dt=0.01, dim=1, Kp=5.0, Ki=0.01, Kd=0.1)
     with matplotlib_context():
         step_singnal_demo(cfg, with_noise=True)
-        
     with matplotlib_context():
         cosine_singnal_demo(cfg, with_noise=True)
-
-    with matplotlib_context():
-        state_regulator_demo(cfg, with_noise=True)

@@ -8,8 +8,8 @@ Created on Sat Jun 18 15:27:34 2022
 
 ''' ADRC '''
 # model free controller
-from typing import Union
-from dataclasses import dataclass
+from typing import Union, Optional
+from dataclasses import dataclass, field
 import numpy as np
 
 from ..base import BaseController
@@ -22,28 +22,35 @@ __all__ = ['ADRCConfig', 'ADRC']
 @dataclass
 class ADRCConfig:
     """ADRC自抗扰控制算法参数
-    :param dt: float, 控制器步长
-    :param dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维
-    :param h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt
-    :param r: SignalLike, 跟踪微分器(TD)快速跟踪因子
-    :param b0: SignalLike, 扩张状态观测器(ESO)被控系统系数
-    :param delta: SignalLike, fal(e, alpha, delta)函数线性区间宽度
-    :param eso_beta01: SignalLike, ESO的反馈增益1
-    :param eso_beta02: SignalLike, ESO的反馈增益2
-    :param eso_beta03: SignalLike, ESO的反馈增益3
-    :param nlsef_beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益
-    :param nlsef_beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益
-    :param nlsef_alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1
-    :param nlsef_alpha2: SignalLike, NLSEF参数, alpha2 > 1
-    :Type : SignalLike = float (标量) 或 list / ndarray (一维数组即向量)\n
-    备注:\n
-    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)\n
-    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的ADRC控制器, 控制效果可能不好\n
+    
+    参数列表：
+    - dt: float, 控制器步长, 默认值 0.001
+    - dim: int, 输入信号维度, 即控制器输入v、y的维度, ADRC输出u也为dim维, 默认值 1
+    - h: float, 跟踪微分器(TD)滤波因子, 系统调用步长, 默认None设置成dt, 默认值 None
+    - r: SignalLike, 跟踪微分器(TD)快速跟踪因子, 默认值 100.
+    - b0: SignalLike, 扩张状态观测器(ESO)被控系统系数, 默认值 133.
+    - delta: SignalLike, fal(e, alpha, delta)函数线性区间宽度, 默认值 0.015
+    - eso_beta01: SignalLike, ESO的反馈增益1, 默认值 150.
+    - eso_beta02: SignalLike, ESO的反馈增益2, 默认值 250.
+    - eso_beta03: SignalLike, ESO的反馈增益3, 默认值 550.
+    - nlsef_beta1: SignalLike, NLSEF参数, 跟踪输入信号的增益, 默认值 10.
+    - nlsef_beta2: SignalLike, NLSEF参数, 跟踪微分信号的增益, 默认值 0.0009
+    - nlsef_alpha1: SignalLike, 非线性反馈控制律(NLSEF)参数, 0 < alpha1 < 1, 默认值 200/201
+    - nlsef_alpha2: SignalLike, NLSEF参数, alpha2 > 1, 默认值 201/200
+    - u_max: SignalLike, 控制律上限, 范围: (u_min, inf], 取inf时不设限, 默认值 inf
+    - u_min: SignalLike, 控制律下限, 范围: [-inf, u_max), 取-inf时不设限, 默认值 -inf
+    
+    类型说明：
+    SignalLike = float (标量) | list / ndarray (一维数组即向量)
+    
+    备注：
+    dim>1时SignalLike为向量时, 相当于同时设计了dim个不同的ADRC控制器, 必须满足dim==len(SignalLike)
+    dim>1时SignalLike为标量时, 相当于设计了dim个参数相同的ADRC控制器, 控制效果可能不好
     """
     dt: float = 0.001              # 控制器步长 (float)
     dim: int = 1                   # 输入维度 (int)
     # 跟踪微分器
-    h: float = None                # 滤波因子，系统调用步长，默认None设置成dt (float)
+    h: Optional[float] = None      # 滤波因子，系统调用步长，默认None设置成dt (float)
     r: SignalLike = 100.           # 快速跟踪因子 (float or list)
     # 扩张状态观测器
     b0: SignalLike = 133.          # 被控系统系数 (float or list)
