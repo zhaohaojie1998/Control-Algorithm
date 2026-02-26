@@ -43,10 +43,10 @@ def continuous_lqr_output_regulator():
         x_dot = A @ x + B @ u
         x = x + x_dot * dt
         y = C @ x
-        real_y_list.append(y[0]) # 需要手动记录真正的y，控制器自动迭代的y基于x估计值, 绘图不好看
+        real_y_list.append(y) # 需要手动记录真正的y，控制器自动迭代的y基于x估计值, 绘图不好看
         
     # 输出
-    lqr_controller.show(name='Continuous', real_y_list=real_y_list)
+    lqr_controller.show(name='Continuous', real_output=real_y_list)
     print('连续系统最终状态:')
     print(f'  位置: {x[0]:.4f}')
     print(f'  速度: {x[1]:.4f}')
@@ -100,10 +100,10 @@ def discrete_lqr_output_regulator():
         # 离散状态更新
         x = A @ x + B @ u
         y = C @ x
-        real_y_list.append(y[0]) # 需要手动记录真正的y，控制器自动迭代的y基于x估计值, 绘图不好看
+        real_y_list.append(y) # 需要手动记录真正的y，控制器自动迭代的y基于x估计值, 绘图不好看
     
     # 输出
-    lqr_controller.show(name='Discrete', real_y_list=real_y_list)
+    lqr_controller.show(name='Discrete', real_output=real_y_list)
     print('离散系统最终状态:')
     print(f'  位置: {x[0]:.4f}')
     print(f'  速度: {x[1]:.4f}')

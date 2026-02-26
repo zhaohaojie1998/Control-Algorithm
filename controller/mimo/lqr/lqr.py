@@ -64,9 +64,7 @@ class LQR_StateRegulator(BaseController):
         self.discrete = discrete
 
         self.A = np.asarray(A)
-        assert self.A.shape[0] == self.A.shape[1], "A必须为方阵"
         self.B = np.asarray(B)
-        assert self.B.shape[0] == self.A.shape[0], "B矩阵维度必须为(dim_x, dim_u)"
 
         self.dim_x = self.A.shape[0]
         self.dim_u = self.B.shape[1]
@@ -74,7 +72,13 @@ class LQR_StateRegulator(BaseController):
         self.Q = self._reshape_scalar(Q, self.dim_x, mode='eye')
         self.R = self._reshape_scalar(R, self.dim_u, mode='eye')
 
-        # 求解反馈增益
+        # 检查矩阵维度
+        assert self.A.shape[0] == self.A.shape[1], "A必须为方阵"
+        assert self.B.shape[0] == self.A.shape[0], "B矩阵维度必须为(dim_x, dim_u)"
+        if hasattr(self, "C"):
+            assert self.C.shape[1] == self.A.shape[0], "C矩阵维度必须为(dim_y, dim_x)"
+
+        # 求解代数黎卡提方程和反馈增益
         self.P = solve_algebraic_riccati(self.A, self.B, self.Q, self.R, self.discrete)
         self.K = np.linalg.inv(self.R) @ self.B.T @ self.P # K = R^(-1) * B^T * P
 
@@ -86,6 +90,7 @@ class LQR_StateRegulator(BaseController):
     def __call__(self, x: SignalLike, v=None) -> SignalLike:
         assert v is None, "状态调节器不需要参考信号"
         x = np.array(x).flatten()
+        assert x.size == self.dim_x, "输入必须为状态向量, 维度必须为dim_x"
 
         # 状态负反馈控制
         u = - self.K @ x # u = -Kx
@@ -153,63 +158,31 @@ class LQR_OutputRegulator(LQR_StateRegulator):
         compute_J : bool, optional
             是否计算性能指标, 会造成额外计算开销, 默认 True
         """
-        self.A = np.asarray(A)
-        assert self.A.shape[0] == self.A.shape[1], "A必须为方阵"
-        self.B = np.asarray(B)
-        assert self.B.shape[0] == self.A.shape[0], "B矩阵维度必须为(dim_x, dim_u)"
         self.C = np.asarray(C)
-        assert self.C.shape[1] == self.A.shape[0], "C矩阵维度必须为(dim_y, dim_x)"
-
-        self.dim_x = self.A.shape[0]
         self.dim_y = self.C.shape[0]
-        self.dim_u = self.B.shape[1]
-        
         self.Qy = self._reshape_scalar(Qy, self.dim_y, mode='eye')
-        self.R = self._reshape_scalar(R, self.dim_u, mode='eye')
-
         # 等效状态调节器
         Q = self.C.T @ self.Qy @ self.C # Q = C^T * Qy * C
         super().__init__(A, B, Q, R, dt, discrete, compute_J)
 
     def __call__(self, x: SignalLike, v=None) -> SignalLike:
-        assert v is None, "输出调节器不需要参考信号"
-        x = np.array(x).flatten()
-        assert x.size == self.dim_x, "输入必须为状态向量, 状态向量维度必须为dim_x"
-        
-        # 状态负反馈控制
-        u = - self.K @ x # u = -Kx
-        self.t += self.dt
-        dummy_y = self.C @ x # 用于绘图和计算J
-
-        # 计算性能指标
-        if self.compute_J:
-            if self.discrete:
-                self.J += 0.5 * (dummy_y.T @ self.Qy @ dummy_y + u.T @ self.R @ u)
-            else:
-                self.J += 0.5 * (dummy_y.T @ self.Qy @ dummy_y + u.T @ self.R @ u) * self.dt
-            self.logger.J.append(self.J)
-
-        # 存储绘图数据
-        self.logger.t.append(self.t)
-        self.logger.y.append(dummy_y)
-        self.logger.u.append(u)
-        self.logger.v.append([0])
+        x = np.asarray(x).flatten()
+        u = super().__call__(x, v)
+        self.logger.y[-1] = self.C @ x
         return u
 
     # 绘图输出
-    def show(self, name='', save_img=False, real_y_list: Optional[ListLike] = None):
+    def show(self, name='', save_img=False, real_output: Optional[ListLike] = None):
         """控制器控制效果绘图输出
         :param name: str, 控制器名称
         :param save_img: bool, 是否存储绘图
-        :param real_y_list: Optional[ListLike], 真实输出数据, 非None时覆盖由y=Cx计算得到的假输出, 从而使绘制的响应曲线更真实
+        :param real_output: Optional[ListLike], 实际输出, 非None时覆盖由y=Cx计算得到的假输出, 从而使绘制的响应曲线更真实
         """
-        if real_y_list is not None:
-            assert len(real_y_list) == len(self.logger.t), "真实输出与模拟输出长度不一致"
-            self.logger.y = real_y_list
+        if real_output is not None:
+            real_output = np.asarray(real_output).reshape(-1, self.dim_y)
+            assert real_output.shape[0] == len(self.logger.t), "实际输出长度与时间长度不一致"
+            self.logger.y = real_output
         super().show(name=name, save_img=save_img)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__} (dt={self.dt}, discrete={self.discrete}, K={self.K})"
 
 
 
