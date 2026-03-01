@@ -1,4 +1,13 @@
 numpy
-matplotlib
 scipy
+cvxpy
+matplotlib
+
+# 模糊控制可选
 scikit-fuzzy
+
+# 智能控制可选
+# torch
+# gymnasium
+# onnx
+# onnxruntime

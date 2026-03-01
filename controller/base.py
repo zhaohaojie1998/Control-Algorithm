@@ -114,7 +114,7 @@ class BaseController(ABC):
         """
         # 响应曲线
         self._add_figure(name=name, title='Response Curve', t=self.logger.t,
-                     y1=self.logger.y, y1_label='controlled',
+                     y1=self.logger.y, y1_label='response',
                      y2=self.logger.v, y2_label='reference',
                      xlabel='time', ylabel='response signal', save_img=save_img)
         # 控制曲线
