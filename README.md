@@ -29,8 +29,8 @@
 | 线性二次型调节器 (输出跟踪版) <br /> Linear Quadratic Regulator | LQR_OutputTracker | 状态反馈 | x、v | u | 线性时不变系统，要求能控能观 |
 | 时变线性二次型调节器 <br /> Time-Varying Linear Quadratic Regulator | TVLQR | 状态反馈 | x、v | u | 线性时变系统 |
 | 迭代线性二次型调节器 <br /> Iterative Linear Quadratic Regulator | iLQR | 状态反馈 | x、v | u | 非线性系统 |
-| 线性二次型积分 (状态调节版) <br /> Linear Quadratic Integral | LQI_StateRegulator | 状态反馈+输出反馈 | x、y、v | u | 带积分器的LQR |
-| 线性二次型高斯 (状态调节版) <br /> Linear Quadratic Gaussian | LQG_StateRegulator | 输出反馈 | y、v | u | 带卡尔曼滤波的LQR |
+| 线性二次型积分 (状态调节版) <br /> Linear Quadratic Integral | LQI_StateRegulator | 状态反馈+输出反馈 | x、y | u | 带积分器的LQR |
+| 线性二次型高斯 (状态调节版) <br /> Linear Quadratic Gaussian | LQG_StateRegulator | 输出反馈 | y | u | 带卡尔曼滤波的LQR |
 | 模型预测控制 <br /> Model Predictive Control | MPC | 状态反馈 | x、v_seq | u | 非线性系统<br />缺点：计算慢，且需要知道未来n步的v |
 
 ### 3. 智能控制 (基于仿真)
