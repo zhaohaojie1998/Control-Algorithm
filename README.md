@@ -20,25 +20,36 @@
 ### 2. 基于模型
 
 基于模型进行优化控制
-- 对于使用状态反馈的控制器，需要设计状态观测器
+- 对于使用状态反馈的控制器，需要额外设计状态观测器，要求系统能观（你有个很NB的观测器也可忽略能观性）。
+- 对于使用输出反馈的控制器，控制器自带状态观测器，要求系统能观。
+- 当系统不能控时，不保证控制效果。
 
-| 算法名 | 控制器类名 | 反馈类型 | 输入 | 输出 | 备注 |
-| --- | --- | --- | --- | --- | --- |
-| 线性二次型调节器 (状态调节版) <br /> Linear Quadratic Regulator | LQR_StateRegulator | 状态反馈 | x | u | 线性时不变系统，要求能控 |
-| 线性二次型调节器 (输出调节版) <br /> Linear Quadratic Regulator | LQR_OutputRegulator | 状态反馈 | x | u | 线性时不变系统，要求能控能观 |
-| 线性二次型调节器 (输出跟踪版) <br /> Linear Quadratic Regulator | LQR_OutputTracker | 状态反馈 | x、v | u | 线性时不变系统，要求能控能观 |
-| 时变线性二次型调节器 <br /> Time-Varying Linear Quadratic Regulator | TVLQR | 状态反馈 | x、v | u | 线性时变系统 |
-| 迭代线性二次型调节器 <br /> Iterative Linear Quadratic Regulator | iLQR | 状态反馈 | x、v | u | 非线性系统 |
-| 线性二次型积分 (状态调节版) <br /> Linear Quadratic Integral | LQI_StateRegulator | 状态反馈+输出反馈 | x、y | u | 带积分器的LQR |
-| 线性二次型高斯 (状态调节版) <br /> Linear Quadratic Gaussian | LQG_StateRegulator | 输出反馈 | y | u | 带卡尔曼滤波的LQR |
-| 模型预测控制 <br /> Model Predictive Control | MPC | 状态反馈 | x、v_seq | u | 非线性系统<br />缺点：计算慢，且需要知道未来n步的v |
+#### 2.1 调节器
+
+| 算法名 | 控制器类名 | 适用系统 | 能控 | 能观 | 反馈类型 | 输入 | 输出 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 线性二次型调节器 (状态调节版) <br /> Linear Quadratic Regulator | LQR (C=None) | LTI | √ | - | 状态反馈 | x | u |
+| 线性二次型调节器 (输出调节版) <br /> Linear Quadratic Regulator | LQR | LTI | √ | √ | 状态反馈 | x | u |
+
+#### 2.2 跟踪器（未全部实现）
+
+用于对y进行跟踪，需要跟踪x时，可将C设为单位矩阵。
+
+| 算法名 | 控制器类名 | 适用系统 | 能控 | 能观 | 反馈类型 | 输入 | 输出 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 线性二次型积分 <br /> Linear Quadratic Integral | LQI | LTI | √ | √ | 状态反馈+输出反馈 | x、y、v | u |
+| 线性二次型高斯 <br /> Linear Quadratic Gaussian | LQG | LTI | √ | √ | 输出反馈 | y、v | u |
+| 时变线性二次型调节器 <br /> Time-Varying Linear Quadratic Regulator | TVLQR | LTV |  |  | 状态反馈 | x、v | u |
+| 迭代线性二次型调节器 <br /> Iterative Linear Quadratic Regulator | iLQR | NL |  |  | 状态反馈 | x、v | u |
+| 模型预测控制 <br /> Model Predictive Control | MPC | NL |  |  | 状态反馈 | x、v_seq | u |
 
 ### 3. 智能控制 (基于仿真)
 
-#### 3.1 强化学习 (未实现)
+#### 3.1 强化学习
 
 仿真环境用来产生训练数据
-- RL通常不用观测器，可通过RNN、非对称Actor-Critic、蒸馏等手段直接从POMDP中学习输出反馈策略
+- RL通常不用观测器，可通过RNN、非对称Actor-Critic、蒸馏等手段直接从POMDP中学习输出反馈策略。
+- RL算法仅用于训练模型，控制器类名统一为RLController，用于执行onnx推理。
 
 | 算法名 | 类名 | 反馈类型 | 输入 | 输出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
@@ -115,7 +126,7 @@ pid = cfg.build()  # 实例化控制器
 print(pid)  # 打印控制器参数
 
 # 生成输入信号
-t_list = np.arange(0.0, 10.0, dt=cfg.dt)
+t_list = np.arange(0.0, 10.0, cfg.dt)
 v_list = np.ones((len(t_list), dim))  # 需要跟踪的信号 v: (dim, )
 
 # 被控对象
@@ -138,19 +149,28 @@ with matplotlib_context():
 
 ```python
 import numpy as np
-from controller.mimo import LQR_StateRegulator
+from controller import LTISystem, LQR
 from controller.utils import matplotlib_context
 
 # 线性系统
 A = np.array([[0, 1], [0, 0]])
 B = np.array([[0], [1]])
-dt = 0.01
+sys = LTISystem(A, B, Ts=None) # Ts=None为连续系统, C=None没有观测方程
+# 可通过以下方法检查线性系统性质
+print(sys.is_controllable()) # 能控性
+print(sys.is_stabilizable()) # 镇定性
+print(sys.is_observable())   # 能观性, C=None返回None
+print(sys.is_detectable())   # 可检测性, C=None返回None
+print(sys.is_stable())       # 稳定性
+print(sys.is_lyapunov_stable(np.eye(2))) # 是否Lyapunov稳定
+
+step_dt = 0.01
 max_steps = 1000
 
 # 设置控制器，MIMO根据模型自动推断维度
 Q = 2  # 设置为float时，自动广播成对角矩阵
 R = 0.1
-lqr = LQR_StateRegulator(A, B, Q, R, dt=dt, discrete=True)
+lqr = LQR(sys, Q, R, dt=step_dt) # C=None时为状态调节器, 否则为输出调节器
 print(lqr)  # 打印控制器参数
 
 # 仿真
@@ -169,6 +189,7 @@ with matplotlib_context():
 ```python
 import gymnasium as gym
 from controller.ai.rl import PPO, RLController
+from controller.utils import matplotlib_context
 
 # 实例化仿真环境
 env = gym.make("Pendulum-v1")
@@ -182,8 +203,8 @@ ppo.train(max_steps=100000) # 训练
 ppo.save_onnx("ppo_pendulum.onnx") # 导出onnx控制模型
 
 # 实例化RL控制器
-rl_ctrl = RLController("ppo_pendulum.onnx")
-# or: rl_ctrl = ppo.get_controller("ppo_pendulum.onnx")
+rl_ctrl = RLController("ppo_pendulum.onnx", dt=0.01)
+# or: rl_ctrl = ppo.get_controller("ppo_pendulum.onnx", dt=0.01)
 
 # 仿真
 env = gym.make("Pendulum-v1", render_mode="human")
@@ -193,6 +214,8 @@ for _ in range(max_steps):
     u = rl_ctrl(obs)
     obs, _, terminated, truncated, _ = env.step(u)
     if terminated or truncated:
+        with matplotlib_context():
+            rl_ctrl.show(save_img=True)
         obs, _ = env.reset()
         rl_ctrl.reset()
 ```
