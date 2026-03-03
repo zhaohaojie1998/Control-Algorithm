@@ -96,7 +96,7 @@ class LQR(BaseController):
     
     def __repr__(self):
         info = \
-f"""{self.__class__.__name__} (dt={self.dt}, discrete={self.system.discrete})
+f"""{self.__class__.__name__} Controller (dt={self.dt}, discrete={self.system.discrete}):
     K = {self.K},
     λ = {self.λ},
     stable = {self.stable}"""
