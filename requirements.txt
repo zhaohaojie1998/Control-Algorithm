@@ -8,6 +8,6 @@ scikit-fuzzy
 
 # 智能控制可选
 # torch
-# gymnasium
+# gymnasium[classic-control]
 # onnx
 # onnxruntime

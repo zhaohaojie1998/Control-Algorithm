@@ -35,6 +35,8 @@ def setup_seed(seed=None):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.enabled = False
+    except ImportError:
+        pass
     finally:
         np.random.seed(seed)               # 为numpy设置随机种子
         random.seed(seed)                  # 为random设置随机种子
