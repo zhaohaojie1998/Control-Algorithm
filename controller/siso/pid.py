@@ -97,6 +97,17 @@ class PID(BaseController):
         self.logger.d = []    # 误差微分
         self.logger.i = []    # 误差积分
     
+    # 重置控制器状态
+    def reset(self):
+        super().reset()
+        self.t = 0
+        self.u = np.zeros(self.dim)
+        self.error = np.zeros(self.dim)      # 误差
+        self.last_error = np.zeros(self.dim) # 上一时刻误差
+        self.error_diff = np.zeros(self.dim) # 误差微分
+        self.error_sum = np.zeros(self.dim)  # real误差积分
+        self.anti_error = np.zeros(self.dim) # anti误差积分
+    
     # 计算 PID 误差
     def _update_pid_error(self, v, y):
         self.error = (np.array(v) - y).flatten()                   # P偏差
@@ -184,6 +195,10 @@ class IncrementPID(PID):
 
     def __init__(self, cfg: PIDConfig):
         super().__init__(cfg)
+        self.last_last_error = np.zeros(self.dim) # e(k-2)
+    
+    def reset(self):
+        super().reset()
         self.last_last_error = np.zeros(self.dim) # e(k-2)
     
     def __call__(self, y, v=None, *, anti_windup_method=0): # 没有前馈

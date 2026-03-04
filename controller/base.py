@@ -28,6 +28,7 @@ class BaseController(ABC):
     def __init__(self):
         # common参数
         self.dt = 0.001  # 控制器步长
+        self.t = 0.0  # 当前时间
         
         # 绘图数据存储器
         self.logger = Logger()
@@ -68,6 +69,12 @@ class BaseController(ABC):
             return np.eye(dim) * value # (dim, dim)
         else:
             raise ValueError(f"mode={mode}")
+        
+    def reset(self):
+        """重置控制器状态"""
+        for k in self.logger.__dict__.keys():
+            setattr(self.logger, k, [])
+        self.t = 0.0
     
     @abstractmethod
     def __call__(self, x_or_y: SignalLike, v: Optional[SignalLike] = None) -> np.ndarray:

@@ -117,6 +117,17 @@ class ADRC(BaseController):
         self.logger.e2 = []    # 误差2
         self.logger.z3 = []    # 干扰
 
+    # 重置控制器状态
+    def reset(self):
+        super().reset()
+        self.v1 = np.zeros(self.dim)
+        self.v2 = np.zeros(self.dim)
+        self.z1 = np.zeros(self.dim)
+        self.z2 = np.zeros(self.dim)
+        self.z3 = np.zeros(self.dim)
+        self.u = np.zeros(self.dim)
+        self.t = 0
+
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
     def __call__(self, y, v=None, *, ctrl_method=1) -> NdArray:
         y = np.array(y)

@@ -89,6 +89,10 @@ class FuzzyPID(PID):
             raise ImportError("skfuzzy is not installed, can not use FuzzyPID. Please run `pip install scikit-fuzzy` first.")
         
         super().__init__(cfg)
+        # 初始PID参数
+        self.Kp_init = self.Kp.copy()
+        self.Ki_init = self.Ki.copy()
+        self.Kd_init = self.Kd.copy()
         # 模糊输入
         self.max_err = self._reshape_param(cfg.max_err, self.dim)
         self.max_err_sum = self._reshape_param(cfg.max_err_sum, self.dim)
@@ -147,6 +151,17 @@ class FuzzyPID(PID):
         fuzzy_sys = f_ctrl.ControlSystem(rules)
         fuzzy_sim = f_ctrl.ControlSystemSimulation(fuzzy_sys)
         return fuzzy_sim
+
+    # 重置控制器状态
+    def reset(self):
+        super().reset()
+        # 重置PID参数
+        self.Kp = self.Kp_init.copy()
+        self.Ki = self.Ki_init.copy()
+        self.Kd = self.Kd_init.copy()
+        # 重置模糊系统状态
+        for fuzzy_sim in self.fuzzy_sim:
+            fuzzy_sim.reset()
 
     # 模糊 PID 控制
     def _update_gain(self):

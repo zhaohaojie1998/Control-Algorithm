@@ -25,6 +25,12 @@ def lqr_pendulum_control():
          [3/(m*l**2)]]
     
     sys = LTISystem(A, B)
+    print("能控性:", sys.is_controllable())
+    print("能观性:", sys.is_observable())
+    print("可镇定性:", sys.is_stabilizable())
+    print("可检测性:", sys.is_detectable())
+    print("开环稳定:", sys.is_stable())
+    print("Laypunov开环稳定:", sys.is_lyapunov_stable(np.eye(2)))
     
     # 权重矩阵
     Q = np.diag([1000, 100]) # 角度误差处罚, 角速度误差处罚
@@ -34,6 +40,7 @@ def lqr_pendulum_control():
     lqr_controller = LQR(sys, Q, R, dt)
     print("LQR倒立摆控制器参数:")
     print(lqr_controller)
+    print("LQR闭环稳定:", lqr_controller.stable)
     
     # 仿真
     env = gym.make("Pendulum-v1", g=g, max_episode_steps=time_steps, render_mode="human")

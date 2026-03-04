@@ -35,10 +35,10 @@ class LQR(BaseController):
 
         # 系统模型
         self.system = system
-        self.is_y_egulator = self.system.C is not None
+        self.is_y_regulator = self.system.C is not None
 
         # 求解LQR问题
-        if self.is_y_egulator:
+        if self.is_y_regulator:
             self.control_law, lqr_info = self.system.design_lqry(Q, R)
         else:
             self.control_law, lqr_info = self.system.design_lqr(Q, R)
@@ -47,12 +47,19 @@ class LQR(BaseController):
         self.stable = lqr_info["stable"]
         
         # 绘图数据
-        dim_q = self.system.dim_y if self.is_y_egulator else self.system.dim_x
+        dim_q = self.system.dim_y if self.is_y_regulator else self.system.dim_x
         self.Q = self._reshape_scalar(Q, dim_q, mode='eye') # 用于计算指标
         self.R = self._reshape_scalar(R, self.system.dim_u, mode='eye') # 用于计算指标
         self.J = 0.0 # 性能指标
         self.logger.J = [] # 指标曲线
 
+    # 重置控制器状态
+    def reset(self):
+        super().reset()
+        self.t = 0.0
+        self.J = 0.0
+
+    # LQR控制器（x为状态向量的观测值）
     def __call__(self, x: SignalLike) -> SignalLike:
         x = np.array(x).flatten()
         assert x.size == self.system.dim_x, "输入必须为状态向量, 维度必须为dim_x"
@@ -62,7 +69,7 @@ class LQR(BaseController):
         self.t += self.dt
 
         # 绘图数据求解
-        y = self.system.C @ x if self.is_y_egulator else x
+        y = self.system.C @ x if self.is_y_regulator else x
         if self.system.discrete:
             self.J += 0.5 * (y.T @ self.Q @ y + u.T @ self.R @ u)
         else:
@@ -84,7 +91,7 @@ class LQR(BaseController):
         :param real_response: Optional[ListLike], 实际响应, 非None时覆盖由观测器计算得到的假响应, 从而使绘制的响应曲线更真实
         """
         if real_response is not None:
-            real_response = np.asarray(real_response).reshape(-1, self.system.dim_y)
+            real_response = np.asarray(real_response).reshape(-1, self.system.dim_y if self.is_y_regulator else self.system.dim_x)
             assert real_response.shape[0] == len(self.logger.t), "实际response长度与时间长度不一致"
             self.logger.y = real_response
         super().show(name=name, save_img=save_img)
