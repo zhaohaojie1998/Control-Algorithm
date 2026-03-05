@@ -8,8 +8,8 @@ Created on Sat Jun 18 15:27:34 2022
 
 ''' ADRC '''
 # model free controller
-from typing import Union, Optional
-from dataclasses import dataclass, field
+from typing import Union, Optional, Literal
+from dataclasses import dataclass
 import numpy as np
 
 from ..base import BaseController
@@ -129,9 +129,18 @@ class ADRC(BaseController):
         self.t = 0
 
     # ADRC控制器（v为参考轨迹，y为实际轨迹）
-    def __call__(self, y, v=None, *, ctrl_method=1) -> NdArray:
-        y = np.array(y)
-        v = np.array(v) if v is not None else np.zeros_like(y)
+    def __call__(self, y: SignalLike, v: SignalLike = None, *, ctrl_method: Literal[0, 1, 2, 3] = 1) -> NdArray:
+        """
+        Args:
+            y (SignalLike): 反馈信号或其观测值
+            v (SignalLike, optional): 跟踪的参考信号, 默认值None跟踪0.
+            ctrl_method (Literal[0, 1, 2, 3], optional): ADRC反馈控制控制方法, 默认值1.
+
+        Returns:
+            NdArray: ADRC控制量
+        """
+        y = np.array(y).ravel()
+        v = np.array(v).ravel() if v is not None else np.zeros_like(y)
         # TD
         self._TD(v)
         # ESO
@@ -175,17 +184,17 @@ class ADRC(BaseController):
         self.z3 = self.z3 + self.h * (- self.eso_beta03 * fe1)
     
     # 非线性状态误差反馈控制律
-    def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method=1) -> NdArray:
+    def _NLSEF(self, e1: NdArray, e2: NdArray, ctrl_method: Literal[0, 1, 2, 3] = 1) -> NdArray:
         ctrl_method %= 4
         if ctrl_method == 0:
             u0 = self.nlsef_beta1 * e1 + self.nlsef_beta2 * e2
         elif ctrl_method == 1:
             u0 = self.nlsef_beta1 * self._fal(e1, self.nlsef_alpha1, self.delta) + self.nlsef_beta2 * self._fal(e2, self.nlsef_alpha2, self.delta)
         elif ctrl_method == 2:
-            u0 = -self.fhan(e1, e2, self.r, self.h)
+            u0 = -self._fhan(e1, e2, self.r, self.h)
         else:
             c = 1.5
-            u0 = -self.fhan(e1, c*e2, self.r, self.h)
+            u0 = -self._fhan(e1, c*e2, self.r, self.h)
         return u0 # (dim, )
     
     @staticmethod
@@ -212,11 +221,12 @@ class ADRC(BaseController):
         return fa
     
     # 输出
-    def show(self, name='', save_img=False, interference: ListLike = None):
-        """控制器控制效果绘图输出
-        :param name: str, 图像名称
-        :param save_img: bool, 是否存储绘图
-        :param interference: ListLike, 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
+    def show(self, name='', save_img=False, interference: Optional[ListLike] = None):
+        """
+        Args:
+            name (str): 图像名称
+            save_img (bool): 是否存储绘图
+            interference (Optional[ListLike]): 实际干扰数据, 用于对比ADRC控制器估计的干扰是否准确
         """
         # 响应曲线 与 控制曲线
         super().show(name=name, save_img=save_img)

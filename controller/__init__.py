@@ -10,6 +10,7 @@ from .siso import FuzzyPIDConfig, FuzzyPID
 
 # 多输入多输出控制器
 from .mimo import LQR
+from .mimo import LQI
 
 
 # 智能控制器

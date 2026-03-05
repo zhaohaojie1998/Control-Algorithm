@@ -43,29 +43,29 @@ class BaseController(ABC):
     @staticmethod
     def _reshape_param(param: Union[float, list[float], NdArray], dim: int) -> NdArray:
         """convert param to ndarray, shape=(dim, )"""
-        param = np.asarray(param).flatten() # (dim, ) or (1, )
+        param = np.asarray(param).ravel() # (dim, ) or (1, )
         if param.size != dim:
             assert param.size == 1, "param为float或dim维的ArrayLike"
             return np.repeat(param, dim) # (dim, )
         return param
     
     @staticmethod
-    def _reshape_scalar(value: Union[ScalarLike, list[ScalarLike], NdArray], dim: int, mode: Literal['vector', 'eye']) -> NdArray:
+    def _reshape_scalar(value: Union[ScalarLike, list[ScalarLike], NdArray], dim: int, mode: Literal['vector', 'diag']) -> NdArray:
         """convert number to eye(dim, dim) or vector(dim, )"""
         value = np.asarray(value)
         # matrix case
         if value.ndim == 2:
-            assert value.shape == (dim, dim) and mode == 'eye', "矩阵参数必须为dim*dim方阵"
+            assert value.shape == (dim, dim) and mode == 'diag', "矩阵参数必须为dim*dim方阵"
             return value
         
         # vector or scalar case
-        value = value.flatten()
+        value = value.ravel()
         if value.size != 1 and value.size != dim:
             raise ValueError(f"number={value} 不能转换为 dim={dim} 维的向量或方阵")
         
         if mode == 'vector':
             return np.full((dim, ), value) # (dim, )
-        elif mode == 'eye':
+        elif mode == 'diag':
             return np.eye(dim) * value # (dim, dim)
         else:
             raise ValueError(f"mode={mode}")
@@ -105,7 +105,8 @@ class BaseController(ABC):
     # 绘图相关
     def _get_save_dir(self, name='') -> pathlib.Path:
         """获取图像保存目录
-        :param name: str, 控制器名称
+        Args:
+            name (str): 控制器名称
         """
         if not name:
             save_dir = pathlib.Path('figure', self.__class__.__name__)
@@ -116,8 +117,11 @@ class BaseController(ABC):
     
     def show(self, name='', save_img=False):
         """控制器控制效果绘图输出
-        :param name: str, 控制器名称
-        :param save_img: bool, 是否存储绘图
+        Args:
+            name (str): 控制器名称
+            save_img (bool): 是否存储绘图
+        
+        默认不弹出窗口, 需要手动plt.show()或者使用上下文管理器
         """
         # 响应曲线
         self._add_figure(name=name, title='Response Curve', t=self.logger.t,
@@ -143,7 +147,10 @@ class BaseController(ABC):
             save_img: bool = False
         ):
         """新增 <时间-信号> 曲线"""
-        have_y2 = bool(y2.size) if isinstance(y2, np.ndarray) else bool(y2)
+        if len(t) == 0 or len(y1) == 0: # 可能是array?, 不能直接用bool判断?
+            return
+        have_y2 = y2 is not None and len(y2) > 0
+        
         # 图例添加
         def get_label(label, data: np.ndarray):
             dim = data.shape[1] if len(data.shape) > 1 else 1
@@ -175,8 +182,10 @@ class BaseController(ABC):
 
     def show_trajectory(self, name='', save_img=False):
         """控制器轨迹跟踪效果绘图输出
-        :param name: str, 控制器名称
-        :param save_img: bool, 是否存储绘图
+        Args:
+            name (str): 控制器名称
+            save_img (bool): 是否存储绘图
+        
         默认不弹出窗口, 需要手动plt.show()或者使用上下文管理器
         """
         v = np.asarray(self.logger.v) # 参考轨迹

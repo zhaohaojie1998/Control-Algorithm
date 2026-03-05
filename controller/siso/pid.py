@@ -8,7 +8,7 @@ Created on Sun Jul 24 15:43:28 2022
 
 ''' PID '''
 # model free controller
-from typing import Literal
+from typing import Literal, Optional
 from dataclasses import dataclass
 import numpy as np
 
@@ -109,16 +109,33 @@ class PID(BaseController):
         self.anti_error = np.zeros(self.dim) # anti误差积分
     
     # 计算 PID 误差
-    def _update_pid_error(self, v, y):
-        self.error = (np.array(v) - y).flatten()                   # P偏差
+    def _update_pid_error(self, v: NdArray, y: NdArray):
+        self.error = v - y                                         # P偏差
         self.error_diff = (self.error - self.last_error) / self.dt # D偏差
         self.error_sum += self.error * self.dt                     # I偏差
 
     # PID控制器（v为参考轨迹，y为实际轨迹或其观测值）
-    def __call__(self, y, v=None, y_expected=None, *, anti_windup_method=1) -> NdArray:
-        # 调节器没有输入
-        if v is None:
-            v = np.zeros_like(y)
+    def __call__(
+        self,
+        y: SignalLike,
+        v: Optional[SignalLike] = None,
+        y_expected: Optional[SignalLike] = None, 
+        *,
+        anti_windup_method: Literal[0, 1] = 1
+    )  -> NdArray:
+        """
+        Args:
+            y (SignalLike): 反馈信号或其观测值
+            v (Optional[SignalLike], optional): 跟踪的参考信号, 默认值None跟踪0.
+            y_expected (Optional[SignalLike], optional): y的期望值, 用于前馈补偿, 默认None无前馈.
+            anti_windup_method (Literal[0, 1], optional): 抗积分饱和方法, 默认值 1.
+
+        Returns:
+            NdArray: PID控制量
+        """
+        y = np.array(y).ravel()
+        v = np.array(v).ravel() if v is not None else np.zeros_like(y)
+        y_expected = np.array(y_expected).ravel() if y_expected is not None else None
         # PID误差
         self._update_pid_error(v, y)
         # 抗积分饱和算法
@@ -126,7 +143,7 @@ class PID(BaseController):
         # PID+前馈控制
         self.u = self.Kp * self.error + integration + self.Kd * self.error_diff
         if y_expected is not None:
-            self.u += self.Kf * (np.array(y_expected) - y)
+            self.u += self.Kf * (y_expected - y)
         self.u = np.clip(self.u, self.u_min, self.u_max)
         self.t += self.dt
         self.last_error[:] = self.error
@@ -142,7 +159,7 @@ class PID(BaseController):
         return self.u
     
     # 抗积分饱和算法 + 积分分离
-    def _Anti_Windup(self, method = 1):
+    def _Anti_Windup(self, method: Literal[0, 1] = 1):
         """输出积分项"""
         method = method % 2
         # 是否积分分离 (remove=0时分离)
@@ -201,10 +218,15 @@ class IncrementPID(PID):
         super().reset()
         self.last_last_error = np.zeros(self.dim) # e(k-2)
     
-    def __call__(self, y, v=None, *, anti_windup_method=0): # 没有前馈
-        # 调节器没有输入
-        if v is None:
-            v = np.zeros_like(y)
+    def __call__(
+        self,
+        y: SignalLike,
+        v: Optional[SignalLike] = None, 
+        *,
+        anti_windup_method: Literal[0, 1] = 0
+    )  -> NdArray:
+        y = np.array(y).ravel()
+        v = np.array(v).ravel() if v is not None else np.zeros_like(y)
         # PID误差
         self._update_pid_error(v, y)
         # 抗积分饱和算法

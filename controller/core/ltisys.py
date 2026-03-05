@@ -55,10 +55,11 @@ class LTISystem:
         """线性定常系统
         
         Args:
-        - A: 状态矩阵
-        - B: 输入矩阵
-        - C: 输出矩阵, 为None时没有观测方程
-        - Ts: 采样时间, 为None时为连续时间系统
+            A (MatLike): 状态矩阵
+            B (MatLike): 输入矩阵
+            C (Optional[MatLike]): 输出矩阵, 为None时没有观测方程
+            D (Optional[MatLike]): 输出矩阵, 为None时没有观测方程
+            Ts (Optional[float]): 采样时间, 为None时为连续时间系统
         """
         if C is None and D is not None:
             raise ValueError("C为None时D必须为None")
@@ -115,8 +116,8 @@ class LTISystem:
             x (MatLike): 系统状态
             y (MatLike, optional): 输出. 无观测方程时为None
         """
-        x = np.asarray(x)
-        u = np.asarray(u)
+        x = np.asarray(x).ravel()
+        u = np.asarray(u).ravel()
         if self.discrete:
             next_x = self.A @ x + self.B @ u
         else:
@@ -150,7 +151,7 @@ class LTISystem:
     
     def is_lyapunov_stable(self, Q: MatLike):
         """是否Lyapunov稳定"""
-        Q = np.asarray(Q)
+        Q = reshape_scalar(Q, self.dim_x, mode="diag")
         return is_lyapunov_stable(self.A, Q, self.discrete)
     
     def get_uncontrollable_modes(self):
@@ -189,21 +190,21 @@ class LTISystem:
         """
         设计LQR状态调节器
         
-        Parameters:
-        - Q: MatLike | ScalarLike, 状态权重矩阵, 如果为标量, 则视为对角矩阵
-        - R: MatLike | ScalarLike, 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
+        Args:
+            Q (MatLike | ScalarLike): 状态权重矩阵, 如果为标量, 则视为对角矩阵
+            R (MatLike | ScalarLike): 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
 
         Returns:
-        - controller: callable, 状态调节器 u = -Kx
-        - info: dict, 包含LQR设计信息, 包括状态增益矩阵K, Riccati矩阵P, 特征值λ, 是否稳定stable
+            controller (callable): 状态调节器 u = -Kx
+            info (dict): 包含LQR设计信息, 包括状态增益矩阵K, Riccati矩阵P, 特征值λ, 是否稳定stable
         """
         # 能控能观检查
         if not self.is_stabilizable():
             raise RuntimeError("系统不具备可镇定性, 无法设计LQR状态调节器")
 
         # 调节器问题 u = -Kx, 状态跟踪问题 u = -Ke + uf
-        R = reshape_scalar(R, self.dim_u, mode="eye")
-        Q = reshape_scalar(Q, self.dim_x, mode="eye")
+        R = reshape_scalar(R, self.dim_u, mode="diag")
+        Q = reshape_scalar(Q, self.dim_x, mode="diag")
         K, P, λ, stable = solve_lqr(self.A, self.B, Q, R, self.discrete)
         if not stable:
             print(f"[warning] LQR闭环不稳定, 闭环特征值为{λ}")
@@ -226,16 +227,16 @@ class LTISystem:
         """
         设计LQR输出调节器, 不支持有D矩阵
         
-        Parameters:
-        - Qy: MatLike | ScalarLike, 输出权重矩阵, 如果为标量, 则视为对角矩阵
-        - R: MatLike | ScalarLike, 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
+        Args:
+            Qy (MatLike | ScalarLike): 输出权重矩阵, 如果为标量, 则视为对角矩阵
+            R (MatLike | ScalarLike): 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
 
         Returns:
-        - controller: callable, 输出调节器 u = -Kx
-        - info: dict, 包含LQR设计信息, 包括状态增益矩阵K, Riccati矩阵P, 特征值λ, 是否稳定stable
+            controller (callable): 输出调节器 u = -Kx
+            info (dict): 包含LQR设计信息, 包括状态增益矩阵K, Riccati矩阵P, 特征值λ, 是否稳定stable
         """
         assert self.C is not None, "未设置输出矩阵C, 无法设计LQR输出调节器"
-        assert self.D is None, "有D矩阵时公式过于复杂, 这里不支持"
+        assert self.D is None, "有D矩阵时LQR输出调节器公式过于复杂, 这里不支持, 请使用LQI输出跟踪器跟踪0信号"
         # 能控能观检查
         if not self.is_stabilizable():
             print("[warning] 系统不具备可镇定性, 无法设计LQR输出调节器")
@@ -243,8 +244,8 @@ class LTISystem:
             print("[warning] 系统不具备可检测定性, 无法设计LQR输出调节器")
         
         # 输出调节器问题: u = -Kx
-        R = reshape_scalar(R, self.dim_u, mode="eye")
-        Qy = reshape_scalar(Qy, self.dim_y, mode="eye")
+        R = reshape_scalar(R, self.dim_u, mode="diag")
+        Qy = reshape_scalar(Qy, self.dim_y, mode="diag")
         K, P, λ, stable = solve_lqry(self.A, self.B, self.C, Qy, R, self.discrete)
         if not stable:
             print(f"[warning] LQR闭环不稳定, 闭环特征值为{λ}")
@@ -263,34 +264,69 @@ class LTISystem:
         self,
         Qy: Union[MatLike, ScalarLike],
         R: Union[MatLike, ScalarLike],
+        handle_cross_terms: bool = False,
     ):
         """
-        设计LQR输出跟踪器 (LQI是输出跟踪器的一种实现), 不支持有D矩阵
+        设计LQR输出跟踪器 (LQI是输出跟踪器的一种实现)
         
-        Parameters:
-        - Qy: MatLike | ScalarLike, 输出权重矩阵, 如果为标量, 则视为对角矩阵
-        - R: MatLike | ScalarLike, 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
+        Args:
+            Qy (MatLike | ScalarLike): 输出权重矩阵, 如果为标量, 则视为对角矩阵
+            R (MatLike | ScalarLike): 控制输入权重矩阵, 如果为标量, 则视为对角矩阵
+            handle_cross_terms (bool): 是否考虑由D引起的输出交叉项 2 x^T C^T Qy D u, 默认False
 
         Returns:
-        - controller: callable, 输入跟踪器 u = -Kx @ x - Ki ∫(y - yd)dt
-        - info: dict, 包含LQI设计信息, 包括状态增益矩阵K, 积分增益Ki, Riccati矩阵P, 特征值λ, 是否稳定stable
+            controller (callable): 输入跟踪器 u = -Kx @ x - Ki ∫(r - y)dt
+            info (dict): 包含LQI设计信息, 包括状态增益矩阵K, 积分增益Ki, Riccati矩阵P, 特征值λ, 是否稳定stable
         """
         assert self.C is not None, "未设置输出矩阵C, 无法设计LQI输出跟踪器"
-        assert self.D is None, "有D矩阵时公式过于复杂, 这里不支持"
+        if self.D is None:
+            handle_cross_terms = False
+            D = np.zeros((self.dim_y, self.dim_u))
+        else:
+            D = self.D
+        
         # 能控能观检查 (输出跟踪期望值不为0, 要求相比调节器更严格, 需要完全能控能观)
         if not self.is_controllable():
             print("[warning] 系统不具备能控性, 无法设计LQI输出跟踪器")
         if not self.is_observable():
             print("[warning] 系统不具备能观性, 无法设计LQI输出跟踪器")
 
-        # 输出跟踪器问题: u = -Kx @ x - Ki ∫(y - yd)dt
-        R = reshape_scalar(R, self.dim_u, mode="eye")
-        Qy = reshape_scalar(Qy, self.dim_y, mode="eye")
-        Kx, Ki, P, λ, stable = solve_lqi(self.A, self.B, self.C, Qy, R, self.discrete)
+        # 输出跟踪器问题: u = -Kx @ x - Ki ∫(r - y)dt
+        R = reshape_scalar(R, self.dim_u, mode="diag")
+        Qy = reshape_scalar(Qy, self.dim_y, mode="diag")
+        Kx, Ki, P, λ, stable = solve_lqi(self.A, self.B, self.C, D, Qy, R, self.discrete, handle_cross_terms)
         if not stable:
             print(f"[warning] LQI闭环不稳定, 闭环特征值为{λ}")
         
-        controller = ...
-        pass
-        # todo: 实现LQI输出跟踪器控制律
-        raise NotImplementedError
+        class LQI:
+            def __init__(this, Kx: np.ndarray, Ki: np.ndarray):
+                this.Kx = Kx
+                this.Ki = Ki
+                this.dim_y: int = self.dim_y
+                this.discrete = self.discrete
+                this.integral = np.zeros(this.dim_y)
+
+            def reset(this, integral: np.ndarray = None):
+                if integral is not None:
+                    this.integral = integral.ravel()
+                else:
+                    this.integral = np.zeros(this.dim_y)
+
+            def __call__(this, x: np.ndarray, y: np.ndarray, r: np.ndarray, dt: float = None):
+                if this.discrete:
+                    this.integral += r.ravel() - y.ravel()
+                else:
+                    assert dt is not None, "连续系统需要提供时间步长dt"
+                    this.integral += (r.ravel() - y.ravel()) * dt
+                return -this.Kx @ x.ravel() - this.Ki @ this.integral
+
+        controller = LQI(Kx, Ki)
+        info = {
+            "Kx": Kx,
+            "Ki": Ki,
+            "P": P,
+            "λ": λ,
+            "stable": stable,
+        }
+
+        return controller, info

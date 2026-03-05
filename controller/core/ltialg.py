@@ -446,7 +446,10 @@ def solve_algebraic_riccati(A: MatLike, B: MatLike, Q: MatLike, R: MatLike, disc
         else:
             raise nla.LinAlgError(f"代数黎卡提方程求解失败：{str(e)}（未知原因）") from e
         
-def solve_lqr(A: MatLike, B: MatLike, Q: MatLike, R: MatLike, discrete: bool = False) -> Tuple[MatLike, MatLike, MatLike, bool]:
+def solve_lqr(
+    A: MatLike, B: MatLike,
+    Q: MatLike, R: MatLike, discrete: bool = False
+) -> Tuple[MatLike, MatLike, MatLike, bool]:
     """
     无限时域LQR状态调节问题求解器, 返回[K, P, λ, stable]
     
@@ -459,7 +462,10 @@ def solve_lqr(A: MatLike, B: MatLike, Q: MatLike, R: MatLike, discrete: bool = F
     - 性能指标: J = Σ(x'Qx + u'Ru)
     - 控制律: u = -Kx
     - 增益K: K = (R + B^T P B)^(-1) * B^T * P * A
-    
+
+    系统模型:
+    - dx/dt = Ax + Bu
+
     Parameters:
     - A: ndarray, 状态矩阵 (n x n)
     - B: ndarray, 输入矩阵 (n x p)
@@ -497,9 +503,12 @@ def solve_lqr(A: MatLike, B: MatLike, Q: MatLike, R: MatLike, discrete: bool = F
         stable = all(np.real(mode) < -DEFAULT_TOL for mode in λ)
     return K, P, λ, stable
 
-def solve_lqry(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, discrete: bool = False) -> Tuple[MatLike, MatLike, MatLike, bool]:
+def solve_lqry(
+    A: MatLike, B: MatLike, C: MatLike,
+    Qy: MatLike, R: MatLike, discrete: bool = False
+) -> Tuple[MatLike, MatLike, MatLike, bool]:
     """
-    无限时域LQR输出调节问题求解器, 返回[K, P, λ, stable]
+    无限时域LQR输出调节问题求解器, 返回[K, P, λ, stable], 不支持带D的系统模型
     
     连续时间:
     - 性能指标: J = ∫(y'Qy + u'Ru)dt
@@ -510,6 +519,10 @@ def solve_lqry(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, disc
     - 性能指标: J = Σ(y'Qy + u'Ru)
     - 控制律: u = -Kx
     - 增益K: K = (R + B^T P B)^(-1) * B^T * P * A
+
+    系统模型:
+    - dx/dt = Ax + Bu
+    - y = Cx
 
     Parameters:
     - A: ndarray, 状态矩阵 (n x n)
@@ -534,26 +547,52 @@ def solve_lqry(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, disc
     Q = C.T @ Qy @ C  # 等效状态调节器权重矩阵
     return solve_lqr(A, B, Q, R, discrete)
 
-def solve_lqi(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, discrete: bool = False) -> Tuple[MatLike, MatLike, MatLike, MatLike, bool]:
+def solve_lqi(
+    A: MatLike, B: MatLike, C: MatLike, D: MatLike,
+    Qy: MatLike, R: MatLike, discrete: bool = False,
+    handle_cross_terms: bool = False
+) -> Tuple[MatLike, MatLike, MatLike, MatLike, bool]:
     """
     无限时域LQR输出跟踪问题求解器 (积分型), 返回[Kx, Ki, P, λ, stable]
-    
-    原理：引入误差积分状态，扩展状态空间
+
+    连续时间:
+    - 性能指标: J = ∫[(r-y)'Qy(r-y) + u'Ru)]dt
+    - 控制律: u = -Kx * x - Ki * ∫(r-y)dt
+
+    离散时间:
+    - 性能指标: J = Σ(r-y)Qy(r-y) + u'Ru)
+    - 控制律: u = -Kx * x - Ki * Σ(r-y)
+
+    系统模型:
+    - dx/dt = Ax + Bu
+    - y = Cx + Du
+
+    引入误差积分 i = ∫(r-y)dt:
+    - di/dt = r - y = -Cx - Du + r
+
+    构建增广状态 z = [[x], [i]]
+        dx/dt = Ax + Bu
+        di/dt = -Cx - Du + r (先假设r=0)
+
     扩展状态矩阵:
         [A   0]
         [-C  0]
     扩展输入矩阵:
         [B]
-        [0]
-    性能指标包含误差积分项，实现无静差跟踪
+        [-D]
+    扩展权重矩阵Q_z:
+        [0   0]
+        [0  Qy]
     
     Parameters:
     - A: ndarray, 状态矩阵 (n x n)
     - B: ndarray, 输入矩阵 (n x p)
     - C: ndarray, 输出矩阵 (q x n)
+    - D: ndarray, 直接传递矩阵 (q x p)
     - Qy: ndarray, 输出权重矩阵 (q x q)
     - R: ndarray, 控制输入权重矩阵 (p x p)
     - discrete: bool, 是否为离散时间系统 (默认为False)
+    - handle_cross_terms: bool, 是否考虑x和u的交叉项 2 x^T C^T Qy D u (默认为False)
 
     Returns:
     - Kx: ndarray, 状态反馈增益矩阵 (p x n)
@@ -565,6 +604,7 @@ def solve_lqi(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, discr
     A = np.asarray(A, dtype=np.float64)
     B = np.asarray(B, dtype=np.float64)
     C = np.asarray(C, dtype=np.float64)
+    D = np.asarray(D, dtype=np.float64)
     Qy = np.asarray(Qy, dtype=np.float64)
     R = np.asarray(R, dtype=np.float64)
     
@@ -573,33 +613,62 @@ def solve_lqi(A: MatLike, B: MatLike, C: MatLike, Qy: MatLike, R: MatLike, discr
     p = B.shape[1]  # 输入维度
     
     # 1. 构造扩展状态空间
-    # 扩展状态矩阵 A_e = [[A, 0], [-C, 0]]
-    A_e = np.block([
+    # 扩展状态矩阵 A_z = [[A, 0], [-C, 0]]
+    A_z = np.block([
         [A, np.zeros((n, q))],
         [-C, np.zeros((q, q))]
     ])
     
-    # 扩展输入矩阵 B_e = [[B], [0]]
-    B_e = np.block([
+    # 扩展输入矩阵 B_z = [[B], [-D]]
+    B_z = np.block([
         [B],
-        [np.zeros((q, p))]
+        [-D]
     ])
     
     # 2. 构造扩展权重矩阵
-    # 状态权重 Q_e = diag(Qx, Qi), 其中 Qx = C^T Qy C, Qi 取Qy
-    Qx = C.T @ Qy @ C
-    Qi = Qy
-    Q_e = np.block([
-        [Qx, np.zeros((n, q))],
-        [np.zeros((q, n)), Qi]
+    # 扩展权重矩阵Q_z = [[0, 0], [0, Qy]], 适合无静差跟踪。 另一种实现 Q_z = [[C^TQyC, 0], [0, 0]], 适合输出调节问题
+    Q_z = np.block([
+        [np.zeros((n, n)), np.zeros((n, q))],
+        [np.zeros((q, n)), Qy]
     ])
     
-    # 3. 求解扩展系统的LQR
-    K_e, P, λ, stable = solve_lqr(A_e, B_e, Q_e, R, discrete)
+    # 3. 构造扩展控制权重矩阵R_z
+    R_z = R + D.T @ Qy @ D
+
+    # 4.由D矩阵产生的交叉项: 2 x^T N u, 其中 N = C^T Qy D
+    N = C.T @ Qy @ D # (n, p)
     
-    # 4. 拆分增益矩阵
-    Kx = K_e[:, :n]  # 状态反馈增益
-    Ki = K_e[:, n:]  # 积分反馈增益
+    # 处理由D产生的交叉项
+    if handle_cross_terms:
+        N_z = np.zeros((n + q, p)) # (n+q, p)
+        N_z[:n, :] = N # 后q行为0
+        try:
+            # 计算变换矩阵 R_inv_NT = R_z^{-1} N^T
+            R_inv = np.linalg.inv(R_z)
+            R_inv_NT = R_inv @ N_z.T
+            
+            # 构造变换后的系统矩阵
+            A_transformed = A_z - B_z @ R_inv_NT
+            B_transformed = B_z
+            Q_transformed = Q_z - N_z @ R_inv @ N_z.T
+            
+            # 求解变换后的Riccati方程
+            K_transformed, P, λ, stable = solve_lqr(A_transformed, B_transformed, Q_transformed, R_z, discrete)
+            
+            # 恢复原控制律 K_z = K_transformed + R_inv_NT
+            K_z = K_transformed + R_inv_NT
+        
+        except np.linalg.LinAlgError as e:
+            print(f"[warning] 交叉项处理失败: {e}, 不考虑交叉项再次求解")
+            K_z, P, λ, stable = solve_lqr(A_z, B_z, Q_z, R_z, discrete)
+    
+    # 不处理交叉项，直接使用solve_lqr
+    else:
+        K_z, P, λ, stable = solve_lqr(A_z, B_z, Q_z, R_z, discrete)
+    
+    # 5. 分解增益矩阵 K_z = [Kx, Ki]
+    Kx = K_z[:, :n]
+    Ki = K_z[:, n:]
     
     return Kx, Ki, P, λ, stable
 
@@ -638,10 +707,17 @@ if __name__ == "__main__":
     print(f"闭环稳定性: {stable}")
     
     # LQI测试
-    Kx, Ki, P_i, λ_i, stable_i = solve_lqi(A_cont, B_cont, C_cont, Qy_cont, R_cont)
+    D_cont = np.array([[0.1]])  # 直接传递矩阵，单输入单输出系统
+    Kx, Ki, P_i, λ_i, stable_i = solve_lqi(A_cont, B_cont, C_cont, D_cont, Qy_cont, R_cont)
     print(f"LQI状态增益Kx: \n{Kx}")
     print(f"LQI积分增益Ki: \n{Ki}")
     print(f"闭环稳定性: {stable_i}")
+    
+    # 测试考虑交叉项的情况
+    Kx_cross, Ki_cross, P_i_cross, λ_i_cross, stable_i_cross = solve_lqi(A_cont, B_cont, C_cont, D_cont, Qy_cont, R_cont, handle_cross_terms=True)
+    print(f"考虑交叉项的LQI状态增益Kx: \n{Kx_cross}")
+    print(f"考虑交叉项的LQI积分增益Ki: \n{Ki_cross}")
+    print(f"闭环稳定性: {stable_i_cross}")
     
     # 测试离散系统
     print("\n=== 离散系统测试 ===")
@@ -673,7 +749,14 @@ if __name__ == "__main__":
     print(f"闭环稳定性: {stable_d}")
     
     # LQI测试
-    Kx_d, Ki_d, P_i_d, λ_i_d, stable_i_d = solve_lqi(A_disc, B_disc, C_disc, Qy_disc, R_disc, discrete=True)
+    D_disc = np.array([[0.1]])  # 直接传递矩阵，单输入单输出系统
+    Kx_d, Ki_d, P_i_d, λ_i_d, stable_i_d = solve_lqi(A_disc, B_disc, C_disc, D_disc, Qy_disc, R_disc, discrete=True)
     print(f"LQI状态增益Kx_d: \n{Kx_d}")
     print(f"LQI积分增益Ki_d: \n{Ki_d}")
     print(f"闭环稳定性: {stable_i_d}")
+    
+    # 测试考虑交叉项的情况
+    Kx_d_cross, Ki_d_cross, P_i_d_cross, λ_i_d_cross, stable_i_d_cross = solve_lqi(A_disc, B_disc, C_disc, D_disc, Qy_disc, R_disc, discrete=True, handle_cross_terms=True)
+    print(f"考虑交叉项的LQI状态增益Kx_d: \n{Kx_d_cross}")
+    print(f"考虑交叉项的LQI积分增益Ki_d: \n{Ki_d_cross}")
+    print(f"闭环稳定性: {stable_i_d_cross}")
