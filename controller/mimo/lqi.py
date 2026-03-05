@@ -51,7 +51,7 @@ class LQI(BaseController):
         self.system = system
 
         # 求解LQI问题
-        self.controler, lqi_info = self.system.design_lqi(Qy, R, handle_cross_terms)
+        self.controller, lqi_info = self.system.design_lqi(Qy, R, handle_cross_terms)
         self.Kx = lqi_info["Kx"]
         self.Ki = lqi_info["Ki"]
         self.λ = lqi_info["λ"]
@@ -80,7 +80,7 @@ class LQI(BaseController):
             integral = np.asarray(integral).ravel()
             assert integral.size == self.system.dim_y, "初始积分值维度必须为dim_y"
         super().reset()
-        self.controler.reset(integral) # 重置积分项
+        self.controller.reset(integral) # 重置积分项
         self.t = 0.0
         self.J = 0.0
 
@@ -103,7 +103,7 @@ class LQI(BaseController):
         assert v.size == self.system.dim_y, "v必须为参考向量, 维度必须为dim_y"
 
         # 控制律求解
-        u = self.controler(x, y, v, dt=self.dt)
+        u = self.controller(x, y, v, dt=self.dt)
         self.t += self.dt
 
         # 绘图数据求解
@@ -120,7 +120,7 @@ class LQI(BaseController):
         self.logger.v.append(v)
         self.logger.J.append(self.J)
         self.logger.e.append(error)
-        self.logger.i.append(self.controler.integral)
+        self.logger.i.append(self.controller.integral)
         return u
 
     # 绘图输出

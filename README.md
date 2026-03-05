@@ -256,6 +256,12 @@ for _ in range(max_steps):
 
 ![](图片/LQR_OutputRegulator1.png)
 
+##### LQI输出跟踪器（基于状态反馈控制，需要设计状态观测器）
+
+![](图片/LQI1.png)
+
+![](图片/LQI2.png)
+
 ## 五、小车位置跟踪控制:
 
 ![](图片/PID0.png)
