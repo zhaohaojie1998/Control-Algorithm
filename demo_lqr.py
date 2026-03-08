@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""LQR 示例"""
 import numpy as np
 from controller import LQR, LTISystem
 from controller.utils import matplotlib_context

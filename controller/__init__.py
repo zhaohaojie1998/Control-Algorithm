@@ -14,6 +14,9 @@ from .mimo import LQI
 
 
 # 智能控制器
+from .ai.rl import RLController
+from .ai.rl import SAC, PPO
+
 
 
 # 估计器

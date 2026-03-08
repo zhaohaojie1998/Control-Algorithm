@@ -299,11 +299,11 @@ class LTISystem:
             print(f"[warning] LQI闭环不稳定, 闭环特征值为{λ}")
         
         class LQI:
-            def __init__(this, Kx: np.ndarray, Ki: np.ndarray):
+            def __init__(this, Kx: np.ndarray, Ki: np.ndarray, discrete: bool):
                 this.Kx = Kx
                 this.Ki = Ki
-                this.dim_y: int = self.dim_y
-                this.discrete = self.discrete
+                this.dim_y = Ki.shape[1]
+                this.discrete = discrete
                 this.integral = np.zeros(this.dim_y)
 
             def reset(this, integral: np.ndarray = None):
@@ -320,7 +320,7 @@ class LTISystem:
                     this.integral += (r.ravel() - y.ravel()) * dt
                 return -this.Kx @ x.ravel() - this.Ki @ this.integral
 
-        controller = LQI(Kx, Ki)
+        controller = LQI(Kx, Ki, self.discrete)
         info = {
             "Kx": Kx,
             "Ki": Ki,

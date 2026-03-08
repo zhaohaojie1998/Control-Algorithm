@@ -119,8 +119,8 @@ class LQR(BaseController):
         super().show(name=name, save_img=save_img)
         # 性能指标曲线
         self._add_figure(name=name, title='Performance Index', t=self.logger.t,
-                            y1=self.logger.J, y1_label='J',
-                            xlabel='time', ylabel='total', save_img=save_img)
+                        y1=self.logger.J, y1_label='J',
+                        xlabel='time', ylabel='total', save_img=save_img)
     
     def __repr__(self):
         info = \

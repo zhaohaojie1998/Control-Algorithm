@@ -200,7 +200,7 @@ print(env.action_space)
 # 训练策略模型 (已有onnx模型可省略)
 ppo = PPO(env, gamma=0.99, lr=0.0003, clip_range=0.2)
 print(ppo)
-ppo.train(max_steps=100000) # 训练
+ppo.train(max_env_steps=100000) # 训练
 ppo.save_onnx("ppo_pendulum.onnx") # 导出onnx控制模型
 
 # 实例化RL控制器
@@ -211,7 +211,7 @@ rl_ctrl = RLController("ppo_pendulum.onnx", dt=0.01)
 env = gym.make("Pendulum-v1", render_mode="human")
 obs, _ = env.reset()
 rl_ctrl.reset()
-for _ in range(max_steps):
+for _ in range(max_env_steps):
     u = rl_ctrl(obs)
     obs, _, terminated, truncated, _ = env.step(u)
     if terminated or truncated:

@@ -51,7 +51,7 @@ class LQI(BaseController):
         self.system = system
 
         # 求解LQI问题
-        self.controller, lqi_info = self.system.design_lqi(Qy, R, handle_cross_terms)
+        self.control_law, lqi_info = self.system.design_lqi(Qy, R, handle_cross_terms)
         self.Kx = lqi_info["Kx"]
         self.Ki = lqi_info["Ki"]
         self.λ = lqi_info["λ"]
@@ -80,7 +80,7 @@ class LQI(BaseController):
             integral = np.asarray(integral).ravel()
             assert integral.size == self.system.dim_y, "初始积分值维度必须为dim_y"
         super().reset()
-        self.controller.reset(integral) # 重置积分项
+        self.control_law.reset(integral) # 重置积分项
         self.t = 0.0
         self.J = 0.0
 
@@ -103,7 +103,7 @@ class LQI(BaseController):
         assert v.size == self.system.dim_y, "v必须为参考向量, 维度必须为dim_y"
 
         # 控制律求解
-        u = self.controller(x, y, v, dt=self.dt)
+        u = self.control_law(x, y, v, dt=self.dt)
         self.t += self.dt
 
         # 绘图数据求解
@@ -120,7 +120,7 @@ class LQI(BaseController):
         self.logger.v.append(v)
         self.logger.J.append(self.J)
         self.logger.e.append(error)
-        self.logger.i.append(self.controller.integral)
+        self.logger.i.append(self.control_law.integral)
         return u
 
     # 绘图输出
@@ -136,16 +136,16 @@ class LQI(BaseController):
         super().show(name=name, save_img=save_img)
         # 性能指标曲线
         self._add_figure(name=name, title='Performance Index', t=self.logger.t,
-                            y1=self.logger.J, y1_label='J',
-                            xlabel='time', ylabel='total', save_img=save_img)
+                        y1=self.logger.J, y1_label='J',
+                        xlabel='time', ylabel='total', save_img=save_img)
         # 误差曲线
         self._add_figure(name=name, title='Error Curve', t=self.logger.t,
-                            y1=self.logger.e, y1_label='error',
-                            xlabel='time', ylabel='error signal', save_img=save_img)
+                        y1=self.logger.e, y1_label='error',
+                        xlabel='time', ylabel='error signal', save_img=save_img)
         # 误差积分曲线
         self._add_figure(name=name, title='Integration of Error Curve', t=self.logger.t,
-                            y1=self.logger.i, y1_label='integration of error',
-                            xlabel='time', ylabel='error integration signal', save_img=save_img)
+                        y1=self.logger.i, y1_label='integration of error',
+                        xlabel='time', ylabel='error integration signal', save_img=save_img)
     
     def __repr__(self):
         info = \

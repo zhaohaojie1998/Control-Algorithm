@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""LQR倒立摆控制"""
 import numpy as np
 import gymnasium as gym
 from controller import LQR, LTISystem
