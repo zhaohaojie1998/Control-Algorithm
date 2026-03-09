@@ -1,8 +1,9 @@
 """LQR倒立摆控制"""
+import time
 import numpy as np
 import gymnasium as gym
 from controller import LQR, LTISystem
-from controller.utils import matplotlib_context, setup_seed
+from controller.utils import matplotlib_context, setup_seed, tic, toc
 
 def lqr_pendulum_control():
     # 仿真参数
@@ -43,15 +44,23 @@ def lqr_pendulum_control():
     print("LQR闭环稳定:", lqr_controller.stable)
     
     # 仿真
+    time.sleep(5)
+    print("\n====================仿真开始====================")
     env = gym.make("Pendulum-v1", g=g, max_episode_steps=time_steps, render_mode="human")
     # 初始状态需要接近线性化平衡点的位置，否则LQR控制器无法收敛
     obs, info = env.reset(options={"x_init": 0.1, "y_init": 0.01}) # 平衡状态为 0
+
+    tic()
     for _ in range(time_steps):
+        tic()
         x = np.array(env.unwrapped.state) # 状态向量：[theta, theta_dot]
         u = lqr_controller(x)
+        toc("LQR控制律求解")
+
         obs, reward, terminated, truncated, info = env.step(u)
         if terminated or truncated:
             break
+    toc("仿真")
     
     # 获取最终状态
     θf, dθf = env.unwrapped.state

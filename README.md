@@ -28,8 +28,8 @@
 
 | 算法名 | 控制器类名 | 适用系统 | 能控 | 能观 | 反馈类型 | 输入 | 输出 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 线性二次型调节器 (状态调节版) <br /> Linear Quadratic Regulator | LQR (C=None) | LTI | √ | - | 状态反馈 | x | u |
-| 线性二次型调节器 (输出调节版) <br /> Linear Quadratic Regulator | LQR | LTI | √ | √ | 状态反馈 | x | u |
+| 线性二次型调节器 (状态调节版) <br /> Linear Quadratic Regulator | LQR (C=None) | 离散/连续LTI | √ | - | 状态反馈 | x | u |
+| 线性二次型调节器 (输出调节版) <br /> Linear Quadratic Regulator | LQR | 离散/连续LTI | √ | √ | 状态反馈 | x | u |
 
 #### 2.2 跟踪器（未全部实现）
 
@@ -37,11 +37,13 @@
 
 | 算法名 | 控制器类名 | 适用系统 | 能控 | 能观 | 反馈类型 | 输入 | 输出 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 线性二次型积分 <br /> Linear Quadratic Integral | LQI | LTI | √ | √ | 状态反馈+输出反馈 | x、y、v | u |
-| 线性二次型高斯 <br /> Linear Quadratic Gaussian | LQG | LTI | √ | √ | 输出反馈 | y、v | u |
-| 时变线性二次型调节器 <br /> Time-Varying Linear Quadratic Regulator | TVLQR | LTV |  |  | 状态反馈 | x、v | u |
+| 线性二次型积分 <br /> Linear Quadratic Integral | LQI | 离散/连续LTI | √ | √ | 状态反馈+输出反馈 | x、y、v | u |
+| 线性二次型高斯 <br /> Linear Quadratic Gaussian | LQG | 离散/连续LTI | √ | √ | 输出反馈 | y、v | u |
+| 时变线性二次型调节器 <br /> Time-Varying Linear Quadratic Regulator | TV_LQR | LTV |  |  | 状态反馈 | x、v | u |
 | 迭代线性二次型调节器 <br /> Iterative Linear Quadratic Regulator | iLQR | NL |  |  | 状态反馈 | x、v | u |
-| 模型预测控制 <br /> Model Predictive Control | MPC | NL |  |  | 状态反馈 | x、v_seq | u |
+| 模型预测控制 <br /> Model Predictive Control | MPC | 离散LTI |  |  | 状态反馈 | x、v_seq | u |
+| 线性时变模型预测控制 <br /> Linear Time-Varying Model Predictive Control | LTV_MPC | 离散LTV |  |  | 状态反馈 | x、v_seq | u |
+| 非线性模型预测控制 <br /> Nonlinear Model Predictive Control | NMPC | 离散NL |  |  | 状态反馈 | x、v_seq | u |
 
 ### 3. 智能控制 (基于仿真)
 
@@ -51,10 +53,10 @@
 - RL通常不用观测器，可通过RNN、非对称Actor-Critic、蒸馏等手段直接从POMDP中学习输出反馈策略。
 - RL算法仅用于训练模型，控制器类名统一为RLController，用于执行onnx推理。
 
-| 算法名 | 类名 | 反馈类型 | 输入 | 输出 | 备注 |
-| --- | --- | --- | --- | --- | --- |
-| SAC算法 <br /> Soft Actor-Critic | SAC | 输出反馈 | obs | u | 收敛快 |
-| PPO算法 <br /> Proximal Policy Optimization | PPO | 输出反馈 | obs | u | 收敛慢，但稳的一批 |
+| 算法名 | 类名 | 适用系统 | 反馈类型 | 输入 | 输出 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 软决策评估算法 <br /> Soft Actor-Critic | SAC | 离散/连续NL | 输出反馈 | obs | u | 收敛快 |
+| 近端策略优化算法 <br /> Proximal Policy Optimization | PPO | 离散/连续NL | 输出反馈 | obs | u | 收敛慢，但理论上稳的一批 <br /> (实测也不稳, SAC才是真神) |
 
 #### 3.2 启发搜索（未实现）
 
@@ -198,14 +200,15 @@ print(env.observation_space)
 print(env.action_space)
 
 # 训练策略模型 (已有onnx模型可省略)
-ppo = PPO(env, gamma=0.99, lr=0.0003, clip_range=0.2)
+ppo = PPO(env, gamma=0.99, lr_actor=0.0003, lr_critic=0.0003, clip_range=0.2)
 print(ppo)
 ppo.train(max_env_steps=100000) # 训练
 ppo.save_onnx("ppo_pendulum.onnx") # 导出onnx控制模型
 
 # 实例化RL控制器
-rl_ctrl = RLController("ppo_pendulum.onnx", dt=0.01)
-# or: rl_ctrl = ppo.get_controller("ppo_pendulum.onnx", dt=0.01)
+rl_ctrl = RLController("ppo_pendulum.onnx", dt=0.05)
+# or: rl_ctrl = ppo.get_controller("ppo_pendulum.onnx", dt=0.05)
+print(rl_ctrl)
 
 # 仿真
 env = gym.make("Pendulum-v1", render_mode="human")
