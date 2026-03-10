@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+强化学习工具
+
+@author: https://github.com/zhaohaojie1998
+"""
 import torch
 import torch.nn as nn
 
@@ -40,7 +45,14 @@ class ContinuousEnvWrapper(gym.ActionWrapper):
 
     def action(self, action):
         """将神经网络输出的 [-1, 1] 映射到 [u_min, u_max]"""
-        return (action * (self.u_max - self.u_min)) + self.u_min
+        return (action + 1) * (self.u_max - self.u_min) / 2 + self.u_min
+
+    @property
+    def env_name(self) -> str:
+        """环境的名称"""
+        if self.spec is None:
+            return self.unwrapped.__class__.__name__
+        return self.spec.id
 
 
 class ReplayBuffer:
@@ -92,7 +104,7 @@ class ReplayBuffer:
         Returns:
             dict[str: torch.Tensor]: 采样的经验, 包含obs, action, reward, next_obs, terminated
         """
-        assert len(self) >= self.batch_size, "buffer_size must >= batch_size"
+        assert len(self) >= self.batch_size, "buffer current size must >= batch_size"
         batch_indices = np.random.choice(len(self), self.batch_size, replace=False)
         batch = [self.buffer[i] for i in batch_indices]
         
