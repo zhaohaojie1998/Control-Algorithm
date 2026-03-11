@@ -450,8 +450,8 @@ class PPO:
             
             def forward(this, obs):
                 action, _ = this.actor(obs, deterministic=deterministic, compute_log_prob=False)
-                scaled_action = action * (this.u_max - this.u_min) + this.u_min
-                return scaled_action
+                u = (action + 1) * (this.u_max - this.u_min) / 2 + this.u_min
+                return u
         
         wrapper = ActorWrapper(self.actor, self.u_min, self.u_max)
         dummy_input = torch.randn(1, self.obs_dim, device=device)

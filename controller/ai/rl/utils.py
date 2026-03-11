@@ -20,6 +20,17 @@ __all__ = [
 
 
 def build_mlp(mlp_sizes: list[int], activation: str = "ReLU", output_activation: str = None) -> nn.Sequential:
+    """
+    构建多层感知机模型
+    
+    Args:
+        mlp_sizes: MLP尺寸列表
+        activation: 中间层的激活函数, 默认值为"ReLU"
+        output_activation: 输出层的激活函数, 默认值为None
+    
+    Returns:
+        mlp: MLP模型
+    """
     layers = []
     for i in range(len(mlp_sizes) - 1):
         layers.append(nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))

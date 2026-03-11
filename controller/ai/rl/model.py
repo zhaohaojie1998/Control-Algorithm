@@ -40,7 +40,7 @@ class GaussianActor(nn.Module):
         """
         Args:
             obs: 观测 (batch_size, obs_dim)
-            action: 可选, 给定的动作 (batch_size, act_dim)时, 计算该动作的对数概率和熵
+            action: 可选, 给定的动作 (batch_size, act_dim), 计算动作的对数概率
             deterministic: 是否使用确定性策略 (action=None时生效), 默认False
             compute_log_prob: 是否计算对数概率 (action=None时生效), 默认True
             

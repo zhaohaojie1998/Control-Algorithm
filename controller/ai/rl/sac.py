@@ -129,12 +129,12 @@ class SAC:
         action_np = action.numpy(force=True)
         return action_np.ravel() # (act_dim,)
     
-    def update(self, total_update_steps: Optional[int] = None) -> dict:
+    def update(self, total_steps: Optional[int] = None) -> dict:
         """
         执行一次SAC更新
         
         Args:
-            total_update_steps: 总训练步数, 用于学习率衰减
+            total_steps: update总调用次数, 用于学习率衰减
 
         Returns:
             metrics: 指标字典
@@ -204,10 +204,10 @@ class SAC:
 
         ## 6.更新学习率
         if self.decay_lr:
-            assert total_update_steps is not None, "total_steps must be provided when decay_lr is True"
-            metrics["lr_actor"] = lr_schedule(self.optimizer_actor, self.global_step, total_update_steps)
-            metrics["lr_critic"] = lr_schedule(self.optimizer_critic, self.global_step, total_update_steps)
-            metrics["lr_alpha"] = lr_schedule(self.optimizer_alpha, self.global_step, total_update_steps)
+            assert total_steps is not None, "total_steps must be provided when decay_lr is True"
+            metrics["lr_actor"] = lr_schedule(self.optimizer_actor, self.global_step, total_steps)
+            metrics["lr_critic"] = lr_schedule(self.optimizer_critic, self.global_step, total_steps)
+            metrics["lr_alpha"] = lr_schedule(self.optimizer_alpha, self.global_step, total_steps)
         
         ## 7.记录指标
         with torch.no_grad():
@@ -327,8 +327,8 @@ class SAC:
             
             def forward(this, obs):
                 action, _ = this.actor(obs, deterministic=deterministic, compute_log_prob=False)
-                scaled_action = action * (this.u_max - this.u_min) + this.u_min
-                return scaled_action
+                u = (action + 1) * (this.u_max - this.u_min) / 2 + this.u_min
+                return u
         
         wrapper = ActorWrapper(self.actor, self.u_min, self.u_max)
         dummy_input = torch.randn(1, self.obs_dim, device=device)
