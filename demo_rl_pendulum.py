@@ -7,7 +7,7 @@ from controller.ai.rl import RLController
 from controller.utils import matplotlib_context, setup_seed, tic, toc
 
 
-def train_sac(model_path, save_random_model=True):
+def train_sac(max_env_steps, onnx_path, save_stochastic=True):
     from controller.ai.rl import SAC
     env = gym.make("Pendulum-v1")
     sac = SAC(
@@ -19,52 +19,49 @@ def train_sac(model_path, save_random_model=True):
         lr_alpha=1e-3,
         lr_actor=1e-3,
         lr_critic=1e-3,
+        decay_lr=False,
         tau=0.005,
         actor_mlp_sizes=[128, 128, 128],
         critic_mlp_sizes=[128, 128, 128],
     )
-    print("SAC算法参数:")
     print(sac)
-    print("Actor模型:")
-    print(sac.actor)
-    print("Critic模型:")
-    print(sac.critic)
+    time.sleep(5)
+
     print("\n====================模型训练开始====================")
-    sac.train(max_env_steps=200000, random_steps=1000, update_freq=100, update_times=2)
-    sac.save_onnx(model_path, deterministic=not save_random_model)
+    sac.train(max_env_steps=max_env_steps, update_freq=10)
+    sac.save_onnx(onnx_path, deterministic=not save_stochastic)
     print("====================模型训练完成====================\n")
 
 
-def train_ppo(model_path, save_random_model=True):
+def train_ppo(max_env_steps, onnx_path, save_stochastic=True):
     from controller.ai.rl import PPO
     env = gym.make("Pendulum-v1")
     ppo = PPO(
         env=env,
         gamma=0.99,
-        gae_lambda=0.98,
+        gae_lambda=0.95,
+        rollout_length=2048,
+        micro_batch_size=64,
+        ppo_epochs=10,
+        target_kl=0.5,
         clip_range=0.2,
+        clip_range_vf=None,
         value_coef=0.5,
-        entropy_coef=0,
+        entropy_coef=0.0,
         max_grad_norm=0.5,
-        rollout_length=256,
-        mini_batch_size=64,
-        num_epochs=3,
+        normalize_advantage=True,
         lr_actor=3e-4,
         lr_critic=3e-4,
-        actor_mlp_sizes=[64, 64],
-        critic_mlp_sizes=[64, 64],
-        action_limit_style="SAC", # 可选PPO和SAC, PPO不严谨但效率高, SAC数学上更严格
-        normalize_advantages=True,
+        decay_lr=False,
+        actor_mlp_sizes=[128, 128, 128],
+        critic_mlp_sizes=[128, 128, 128],
     )
-    print("PPO算法参数:")
     print(ppo)
-    print("Actor模型:")
-    print(ppo.actor)
-    print("Critic模型:")
-    print(ppo.critic)
+    time.sleep(5)
+
     print("\n====================模型训练开始====================")
-    ppo.train(max_env_steps=500000)
-    ppo.save_onnx(model_path, deterministic=not save_random_model)
+    ppo.train(max_env_steps=max_env_steps)
+    ppo.save_onnx(onnx_path, deterministic=not save_stochastic)
     print("====================模型训练完成====================\n")
 
 
@@ -120,15 +117,16 @@ def rl_pendulum_control(model_path):
 if __name__ == '__main__':
     setup_seed(114514)
     
-    ALGO = "SAC" # PPO 或 SAC
+    ALGO = "PPO" # PPO 或 SAC
+    MAX_ENV_STEPS = 100000
     MODEL_PATH = pathlib.Path(f"models/{ALGO}_pendulum.onnx")
 
     # 训练模型
     if not MODEL_PATH.is_file():
         if ALGO == "SAC":
-            train_sac(MODEL_PATH, save_random_model=True) # 随机模型鲁棒性更强
+            train_sac(MAX_ENV_STEPS, MODEL_PATH, save_stochastic=True)
         else:
-            train_ppo(MODEL_PATH, save_random_model=True) # 随机模型鲁棒性更强
+            train_ppo(MAX_ENV_STEPS, MODEL_PATH, save_stochastic=False)
 
     # 使用模型
     with matplotlib_context():

@@ -16,6 +16,7 @@
 | 先进PID控制 <br /> Proportion Integral Differential | PID | 输出反馈 | y、v | u | 自带先进PID功能 |
 | 增量式PID控制 <br /> Increment PID Control | IncrementPID | 输出反馈 | y、v | u | 自带先进PID功能 |
 | 自抗扰控制 <br /> Active Disturbance Rejection Control | ADRC | 输出反馈 | y、v | u | 缺点：参数巨多。。。 |
+| 线性自抗扰控制 <br /> Linear Active Disturbance Rejection Control | LADRC | 输出反馈 | y、v | u | 升级版ADRC, 参数较少 |
 
 ### 2. 基于模型
 
@@ -31,7 +32,7 @@
 | 线性二次型调节器 (状态调节版) <br /> Linear Quadratic Regulator | LQR (C=None) | 离散/连续LTI | √ | - | 状态反馈 | x | u |
 | 线性二次型调节器 (输出调节版) <br /> Linear Quadratic Regulator | LQR | 离散/连续LTI | √ | √ | 状态反馈 | x | u |
 
-#### 2.2 跟踪器（未全部实现）
+#### 2.2 跟踪器
 
 用于对y进行跟踪，需要跟踪x时，可将C设为单位矩阵。
 
@@ -55,8 +56,8 @@
 
 | 算法名 | 类名 | 适用系统 | 反馈类型 | 输入 | 输出 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 软决策评估算法 <br /> Soft Actor-Critic | SAC | 离散/连续NL | 输出反馈 | obs | u | 收敛快 |
-| 近端策略优化算法 <br /> Proximal Policy Optimization | PPO | 离散/连续NL | 输出反馈 | obs | u | 收敛慢，但理论上稳的一批 <br /> (实测也不稳, SAC才是真神) |
+| 软决策评估算法 <br /> Soft Actor-Critic | SAC | 离散/连续NL | 输出反馈 | obs | u | 收敛快，基本上不需要调参 |
+| 近端策略优化算法 <br /> Proximal Policy Optimization | PPO | 离散/连续NL | 输出反馈 | obs | u | 收敛慢，但理论上稳的一批 |
 
 #### 3.2 启发搜索（未实现）
 
@@ -64,9 +65,9 @@
 - 原理类似MPC，直接搜索u_seq，u_seq带入环境模型评估搜索结果，利用启发算法优化，执行u_seq[0]，下一时刻重新搜索
 （很多学阀喜欢用启发算法冒充AI骗经费，群体智能也是智能[狗头]）
 
-| 算法名 | 控制器类名 | 反馈类型 | 输入 | 输出 | 备注 |
-| --- | --- | --- | --- | --- | --- |
-| 启发搜索算法 <br /> Heuristic Search | PSO等动物园算法 | 状态反馈 | x、v_seq | u | 缺点：速度巨慢，基本上没实用价值 |
+| 算法名 | 控制器类名 | 适用系统 | 反馈类型 | 输入 | 输出 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 启发搜索算法 <br /> Heuristic Search | PSO等动物园算法 | 离散NL | 状态反馈 | x、v_seq | u | 暴力搜索就完事了，优化问题不存在了 <br /> 缺点：速度巨慢，基本上没实用价值 |
 
 ### 4. 模糊控制
 

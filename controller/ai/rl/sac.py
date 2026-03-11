@@ -9,71 +9,27 @@ Soft Actor-Critic 算法
 # model free controller
 from typing import Optional
 import pathlib
+from datetime import datetime
 from functools import cached_property
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
 import gymnasium as gym
 from gymnasium.vector import VectorEnv
 
-from .utils import build_mlp, ContinuousEnvWrapper, ReplayBuffer
+from .model import GaussianActor, CriticQ
+from .utils import ContinuousEnvWrapper, ReplayBuffer, lr_schedule
 
 __all__ = ['SAC']
 
 
-class Actor(nn.Module):
-    def __init__(self, obs_dim, act_dim, mlp_sizes=[128, 128, 128], log_std_min=-20, log_std_max=2):
-        super().__init__()
-        mlp_sizes = [obs_dim] + mlp_sizes
-        self.mlp = build_mlp(mlp_sizes, activation="ReLU", output_activation="ReLU")
-        self.mean_head = nn.Linear(mlp_sizes[-1], act_dim)
-        self.log_std_head = nn.Linear(mlp_sizes[-1], act_dim)
-        self.register_buffer("log_std_min", torch.tensor(log_std_min, dtype=torch.float32))
-        self.register_buffer("log_std_max", torch.tensor(log_std_max, dtype=torch.float32))
-
-    def forward(self, obs, deterministic=False, compute_log_prob=True):
-        feature = self.mlp(obs)
-        mean = self.mean_head(feature)
-        log_std = self.log_std_head(feature)
-        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-        std = torch.exp(log_std)
-
-        # 构造正态分布, 采样出无约束动作
-        dist = Normal(mean, std)
-        if deterministic:
-            u = mean
-        else:
-            u = dist.rsample() # 需要rsample确保梯度回传
-
-        # 分布变换, 转换为有约束动作, 并对对数概率进行雅可比修正
-        a = torch.tanh(u)
-        if compute_log_prob:
-            # SAC论文公式: log_prob(a) = (dist.log_prob(u) - torch.log(1 - a.pow(2) + 1e-6)).sum(dim=1, keepdim=True)
-            # 由于 a=tanh(u) 会导致梯度消失, 将 tanh(u)^2 按照tanh定义展开, 得到如下公式:
-            log_prob = dist.log_prob(u).sum(axis=1, keepdim=True) - (2 * (np.log(2) - u - F.softplus(-2 * u))).sum(axis=1, keepdim=True) # (batch, 1)
-        else:
-            log_prob = None
-        
-        return a, log_prob
-
-
-class CriticQ(nn.Module):
-    def __init__(self, obs_dim, act_dim, mlp_sizes=[128, 128, 128]):
-        super().__init__()
-        mlp_sizes = [obs_dim + act_dim] + mlp_sizes + [1]
-        self.q1 = build_mlp(mlp_sizes, activation="ReLU", output_activation=None)
-        self.q2 = build_mlp(mlp_sizes, activation="ReLU", output_activation=None)
-    
-    def forward(self, obs, action):
-        return self.q1(torch.cat([obs, action], dim=-1)), self.q2(torch.cat([obs, action], dim=-1))
-
-
 class SAC:
+    """Soft Actor-Critic 算法"""
+
     def __init__(
         self,
         env: gym.Env,
@@ -85,6 +41,7 @@ class SAC:
         lr_alpha: float = 1e-3,
         lr_actor: float = 1e-3,
         lr_critic: float = 1e-3,
+        decay_lr: bool = False,
         tau: float = 0.005,
         actor_mlp_sizes: list[int] = [128, 128, 128],
         critic_mlp_sizes: list[int] = [128, 128, 128],
@@ -100,6 +57,7 @@ class SAC:
             lr_alpha (float, optional): 温度系数学习率, 默认值为1e-3
             lr_actor (float, optional): 策略网络学习率, 默认值为1e-3
             lr_critic (float, optional): Q网络学习率, 默认值为1e-3
+            decay_lr (bool, optional): 是否衰减学习率, 默认值为False.
             tau (float, optional): 目标Q软更新系数, 默认值为0.005
             actor_mlp_sizes (list[int], optional): 策略网络MLP层大小, 默认值为[128, 128, 128]
             critic_mlp_sizes (list[int], optional): Q网络MLP层大小, 默认值为[128, 128, 128]
@@ -124,7 +82,7 @@ class SAC:
         self.buffer = ReplayBuffer(buffer_size, batch_size)
         
         # Networks
-        self.actor = Actor(self.obs_dim, self.act_dim, actor_mlp_sizes).to(self.device)
+        self.actor = GaussianActor(self.obs_dim, self.act_dim, actor_mlp_sizes).to(self.device)
         self.critic = CriticQ(self.obs_dim, self.act_dim, critic_mlp_sizes).to(self.device)
         self.critic_target = CriticQ(self.obs_dim, self.act_dim, critic_mlp_sizes).to(self.device)
         self.critic_target.load_state_dict(self.critic.state_dict())
@@ -134,6 +92,7 @@ class SAC:
         # Optimizers
         self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
+        self.decay_lr = decay_lr
         self.tau = tau
         
         # Temperature
@@ -143,7 +102,7 @@ class SAC:
         self.optimizer_alpha = torch.optim.Adam([self.log_alpha], lr=lr_alpha)
         
         # Tensorboard
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter(f"runs/SAC_{self.env.env_name}_{datetime.now().strftime('%b%d_%H-%M-%S')}")
         self.global_step = 0
     
     @cached_property
@@ -153,7 +112,7 @@ class SAC:
         else:
             return torch.device("cpu")
     
-    @torch.no_grad
+    @torch.no_grad()
     def act(self, obs: np.ndarray, deterministic: bool = False) -> np.ndarray:
         """
         与环境交互，返回动作, 范围 [-1, 1]
@@ -170,10 +129,19 @@ class SAC:
         action_np = action.numpy(force=True)
         return action_np.ravel() # (act_dim,)
     
-    def update(self) -> dict:
-        """执行一次SAC更新"""
+    def update(self, total_update_steps: Optional[int] = None) -> dict:
+        """
+        执行一次SAC更新
+        
+        Args:
+            total_update_steps: 总训练步数, 用于学习率衰减
+
+        Returns:
+            metrics: 指标字典
+        """
+        metrics = {}
         if not self.buffer.should_update():
-            return {}
+            return metrics
         
         self.global_step += 1
         
@@ -233,50 +201,62 @@ class SAC:
         ## 5.更新target critic网络
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        ## 6.更新学习率
+        if self.decay_lr:
+            assert total_update_steps is not None, "total_steps must be provided when decay_lr is True"
+            metrics["lr_actor"] = lr_schedule(self.optimizer_actor, self.global_step, total_update_steps)
+            metrics["lr_critic"] = lr_schedule(self.optimizer_critic, self.global_step, total_update_steps)
+            metrics["lr_alpha"] = lr_schedule(self.optimizer_alpha, self.global_step, total_update_steps)
         
-        ## 6.记录指标
+        ## 7.记录指标
         with torch.no_grad():
-            metrics = {
-                "actor_loss": actor_loss.item(),
-                "critic_loss": critic_loss.item(),
-                "alpha_loss": alpha_loss.item(),
-                "soft_q1": current_q1.mean().item(),
-                "soft_q2": current_q2.mean().item(),
-                "log_prob": log_prob.mean().item(),
-                "alpha": self.alpha,
-            }
+            metrics["actor_loss"] = actor_loss.item()
+            metrics["critic_loss"] = critic_loss.item()
+            metrics["alpha_loss"] = alpha_loss.item()
+            metrics["mean_soft_q1"] = current_q1.mean().item()
+            metrics["mean_soft_q2"] = current_q2.mean().item()
+            metrics["mean_log_prob"] = log_prob.mean().item()
+            metrics["entropy"] = -metrics["mean_log_prob"] # H = -E(log_prob)
+            metrics["alpha"] = self.alpha
         
         self.writer.add_scalar("Loss/actor", metrics["actor_loss"], self.global_step)
         self.writer.add_scalar("Loss/critic", metrics["critic_loss"], self.global_step)
         self.writer.add_scalar("Loss/alpha", metrics["alpha_loss"], self.global_step)
-        self.writer.add_scalar("Value/soft_q1", metrics["soft_q1"], self.global_step)
-        self.writer.add_scalar("Value/soft_q2", metrics["soft_q2"], self.global_step)
-        self.writer.add_scalar("Policy/log_prob", metrics["log_prob"], self.global_step)
+        self.writer.add_scalar("Action Value/mean_soft_q1", metrics["mean_soft_q1"], self.global_step)
+        self.writer.add_scalar("Action Value/mean_soft_q2", metrics["mean_soft_q2"], self.global_step)
+        self.writer.add_scalar("Policy/mean_log_prob", metrics["mean_log_prob"], self.global_step)
+        self.writer.add_scalar("Policy/entropy", metrics["entropy"], self.global_step)
         self.writer.add_scalar("Policy/temperature(alpha)", metrics["alpha"], self.global_step)
+        if self.decay_lr:
+            self.writer.add_scalar("Learning Rate/actor", metrics["lr_actor"], self.global_step)
+            self.writer.add_scalar("Learning Rate/critic", metrics["lr_critic"], self.global_step)
+            self.writer.add_scalar("Learning Rate/alpha", metrics["lr_alpha"], self.global_step)
         
         print(
             f"Global Step: {self.global_step} "
             f"| actor_loss: {metrics['actor_loss']:.4f} "
             f"| critic_loss: {metrics['critic_loss']:.4f} "
             f"| alpha_loss: {metrics['alpha_loss']:.4f} "
-            f"| log_prob: {metrics['log_prob']:.4f} "
+            f"| mean_log_prob: {metrics['mean_log_prob']:.4f} "
+            f"| entropy: {metrics['entropy']:.4f} "
             f"| temperature(alpha): {metrics['alpha']:.4f} "
-            f"| soft_q1: {metrics['soft_q1']:.4f} "
-            f"| soft_q2: {metrics['soft_q2']:.4f} "
+            f"| mean_soft_q1: {metrics['mean_soft_q1']:.4f} "
+            f"| mean_soft_q2: {metrics['mean_soft_q2']:.4f} "
         )
-        
         return metrics
     
-    def train(self, max_env_steps: int = 100000, random_steps: int = 1000, update_freq: int = 1, update_times: int = 1):
+    def train(self, max_env_steps: int, random_steps: int = 0, update_freq: int = 1, update_times: int = 1):
         """
         SAC训练
 
         Args:
             max_env_steps: 最大环境步数
-            random_steps: 随机探索环境的步数
-            update_freq: 每多少环境步更新网络
-            update_times: 每次更新网络的次数
+            random_steps: 随机探索环境的步数, 默认为0
+            update_freq: 每多少环境步更新网络, 默认为1
+            update_times: 每次更新网络的次数, 默认为1
         """
+        total_update_steps = int(max_env_steps // update_freq * update_times)
         env_step = 0
         episode = 0
 
@@ -317,11 +297,12 @@ class SAC:
             # SAC更新
             if env_step % update_freq == 0:
                 for _ in range(update_times):
-                    self.update()
+                    self.update(total_update_steps)
         
         # 关闭tensorboard
         self.writer.close()
     
+    @torch.no_grad()
     def save_onnx(self, onnx_path: str, deterministic: bool = True, device: str = "cpu"):
         """
         导出ONNX模型
@@ -382,4 +363,26 @@ class SAC:
         return RLController(onnx_path, dt)
     
     def __repr__(self):
-        return f"SAC(gamma={self.gamma}, alpha={self.alpha}, target_entropy={self.target_entropy}, tau={self.tau})"
+        info = \
+f"""============= Soft Actor-Critic (SAC) =============
+Environment:
+    id: {self.env.env_name}
+    observation_space: {self.env.observation_space}
+    action_space: {self.env.action_space}
+Parameters:
+    gamma: {self.gamma}
+    alpha: {self.alpha}
+    batch_size: {self.buffer.batch_size}
+    buffer_size: {self.buffer.buffer_size}
+    target_entropy: {self.target_entropy}
+    tau: {self.tau}
+===================== Actor Model =====================
+{self.actor}
+===================== Critic Model =====================
+{self.critic}
+===================== Optimizers =====================
+Actor Optimizer: {self.optimizer_actor}
+Critic Optimizer: {self.optimizer_critic}
+Alpha Optimizer: {self.optimizer_alpha}
+====================================================="""
+        return info

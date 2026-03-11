@@ -12,6 +12,7 @@ import gymnasium as gym
 
 __all__ = [
     'build_mlp',
+    'lr_schedule',
     'ContinuousEnvWrapper',
     'ReplayBuffer',
     'RolloutBuffer'
@@ -34,6 +35,26 @@ def build_mlp(mlp_sizes: list[int], activation: str = "ReLU", output_activation:
         layers.append(activation_class())
     
     return nn.Sequential(*layers)
+
+
+def lr_schedule(optimizer: torch.optim.Optimizer, current_step: int, max_steps: int, final_lr_ratio: float = 0.1):
+    """
+    学习率线性衰减到final_lr_ratio * lr_init
+    
+    Args:
+        optimizer: 优化器
+        current_step: 当前训练步数
+        max_steps: 最大训练步数
+        final_lr_ratio: 最终学习率占初始学习率的比例, 默认值为0.1
+    
+    Returns:
+        lr: 当前学习率
+    """
+    lr_init = optimizer.defaults["lr"]
+    lr = (1 - final_lr_ratio) * lr_init * max(0, 1 - current_step / max_steps) + final_lr_ratio * lr_init
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = lr
+    return lr
 
 
 class ContinuousEnvWrapper(gym.ActionWrapper):
