@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal, Beta
+from torch.distributions import Normal
 
 from .utils import build_mlp
 
@@ -57,18 +57,19 @@ class GaussianActor(nn.Module):
         # 构造正态分布
         dist = Normal(mean, std)
         
-        # 采样模式：根据策略网络输出的均值和标准差，从正态分布中采样动作，并使用tanh变换限制动作范围到[-1, 1]
+        # 采样模式：从正态分布中采样动作，并使用tanh变换限制动作范围到[-1, 1]
         if action is None:
+            # 采样出无约束动作u
             if deterministic:
                 u = mean
             else:
                 u = dist.rsample() # 需要rsample确保梯度回传
             
-            # 使用tanh变换限制动作范围, 雅可比修正对数概率
-            a = torch.tanh(u)
+            # tanh变换得到有约束动作a, 雅可比修正对数概率
+            action = torch.tanh(u)
             if compute_log_prob:
                 # SAC论文公式: log_prob(a) = (dist.log_prob(u) - torch.log(1 - a.pow(2) + 1e-6)).sum(dim=1, keepdim=True)
-                # 由于 a=tanh(u) 会导致梯度消失, 将 tanh(u)^2 按照tanh定义展开, 得到如下公式:
+                # 由于 a=tanh(u) 在u∈[-3,3]以外会导致梯度消失, 将 tanh(u)^2 按照tanh定义展开, 得到如下公式:
                 log_prob = torch.sum(
                     (dist.log_prob(u) - (2 * (np.log(2) - u - F.softplus(-2 * u)))), # (batch_size, act_dim)
                     dim=1, keepdim=True
@@ -78,7 +79,6 @@ class GaussianActor(nn.Module):
         
         # 评估模式：计算给定动作的对数概率
         else:
-            a = action
             # 逆变换动作a到u
             u = torch.atanh(torch.clamp(action, -0.999999, 0.999999)) # 防止atanh数值溢出
             # 计算雅可比修正后的log_prob
@@ -87,7 +87,7 @@ class GaussianActor(nn.Module):
                 dim=1, keepdim=True
             ) # (batch_size, 1)
         
-        return a, log_prob
+        return action, log_prob
 
 
 # ============== Critic Network ==============
