@@ -60,15 +60,18 @@ class RLController(BaseController):
         if not self.rnn_type:
             return hidden
 
+        def _parse_shape(shape):
+            return [1 if (d == -1 or isinstance(d, str)) else d for d in shape]
+
         # 初始化 h_in
         h_info = next(i for i in self.session.get_inputs() if i.name == "h_in")
-        h_shape = [1 if d == -1 else d for d in h_info.shape]
+        h_shape = _parse_shape(h_info.shape)
         hidden["h_in"] = np.zeros(h_shape, dtype=np.float32)
         
         # 初始化 c_in
         if self.rnn_type == "LSTM":
             c_info = next(i for i in self.session.get_inputs() if i.name == "c_in")
-            c_shape = [1 if d == -1 else d for d in c_info.shape]
+            c_shape = _parse_shape(c_info.shape)
             hidden["c_in"] = np.zeros(c_shape, dtype=np.float32)
         return hidden
 
@@ -116,5 +119,10 @@ class RLController(BaseController):
                         xlabel='time', ylabel='obs', save_img=save_img)
     
     def __repr__(self):
-        rnn_info = f", rnn_type={self.rnn_type}" if self.rnn_type else ""
-        return f"RL Controller (dt={self.dt}, model={self.onnx_path}{rnn_info})"
+        rnn_info = f"\n    rnn_type = {self.rnn_type}" if self.rnn_type else ""
+        info = \
+f"""RL Controller (dt={self.dt}):
+    model = {self.onnx_path}{rnn_info}
+    input_names = {self.input_names}
+    output_names = {self.output_names}"""
+        return info
